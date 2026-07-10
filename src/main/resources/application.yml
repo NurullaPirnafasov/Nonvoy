@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/nonvoy_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+bot:
+  token: ${BOT_TOKEN}
+  username: ${BOT_USERNAME}
+  admin-group-id: ${ADMIN_GROUP_ID}
