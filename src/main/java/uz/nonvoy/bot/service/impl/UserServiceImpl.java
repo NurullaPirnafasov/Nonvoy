@@ -13,13 +13,14 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+
     @Override
     public User findOrCreate(Long telegramId, String name) {
-        Optional<User> user=userRepository.findByTelegramId(telegramId);
-        if(user.isPresent()){
+        Optional<User> user = userRepository.findByTelegramId(telegramId);
+        if (user.isPresent()) {
             return user.get();
-        }else {
-            User u=new User();
+        } else {
+            User u = new User();
             u.setTelegramId(telegramId);
             u.setName(name);
             return userRepository.save(u);
