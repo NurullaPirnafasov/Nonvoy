@@ -19,7 +19,7 @@ Bu loyihada Nurulla kod yozadi, Claude **senior reviewer / team lead** rolida:
 
 ## Texnik stack
 
-- Java 21, Spring Boot 4.x, Maven
+- Java 21, Spring Boot 3.3.x, Maven
 - PostgreSQL
 - telegrambots kutubxonasi, long polling (webhook keyinroq)
 - Package: `uz.nonvoy.bot` (yoki mijoz nomiga mos)
