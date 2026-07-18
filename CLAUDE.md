@@ -32,7 +32,7 @@ Oddiy layered: `Bot handler → Service → Repository`. Mapper/Event/Integratio
 
 - **User** — telegramId, phone (contact orqali), name, role (CUSTOMER/ADMIN), state (bot flow qadami)
 - **Product** — nomi, narxi, available (boolean "bugun bor/yo'q"). Hozircha bitta qator ("Non"), lekin yangi turlar (patir, shirmoy) qo'shilishi kutiladi
-- **Order** — user, status, orderNumber, jami summa
+- **Order** — user, status, jami summa. Buyurtma raqami sifatida `Auditable.id` ishlatiladi (alohida `orderNumber` maydoni YO'Q — id unique, hisoblagich kerak emas; sequence'da uzilish/sakrash bo'lishi mumkin, lekin novvoyxona uchun raqam shunchaki identifikator, ketma-ketlik ma'no bermaydi)
 - **OrderItem** — order, product, quantity, **priceAtOrder** (buyurtma paytidagi narx muzlatiladi — mahsulot narxi keyin o'zgarsa buyurtma tarixi buzilmasligi uchun)
 
 ### Status flow (sodda)
