@@ -25,4 +25,5 @@ public class User extends Auditable {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private UserState state=UserState.NEW;
+    private Integer draftQuantity;
 }
