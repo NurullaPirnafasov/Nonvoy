@@ -51,7 +51,7 @@ Foydalanuvchi flow'da qaysi qadamda ekani DB'da saqlanadi (`User.state` enum). R
 ## Mijoz flow
 
 1. `/start` → agar telefon yo'q bo'lsa, contact button orqali so'raladi (bir marta)
-2. "Nechta non kerak?" → tayyor tugmalar (5 / 10 / 15 / 20) yoki raqam yozish
+2. "Nechta non kerak?" → foydalanuvchi raqamni yozib kiritadi (validatsiya: 1–100)
 3. Tasdiqlash → "Buyurtma #47 qabul qilindi ✅ Jami: 10 ta non — 50 000 so'm"
 4. Status o'zgarganda avtomatik xabar (ayniqsa READY: "Noningiz tayyor, olib ketishingiz mumkin 🍞")
 5. Tungi buyurtmalar ham qabul qilinadi — NEW bo'lib navbatda turadi, novvoy ertalab ko'radi. Ish vaqti validatsiyasi YO'Q.
@@ -84,7 +84,7 @@ Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
 ### 2-bosqich: Mijoz flow (3-4 kun)
 - [ ] State management (User.state asosida update routing)
 - [ ] Ro'yxatdan o'tish (contact button)
-- [ ] Miqdor so'rash (tugmalar + qo'lda raqam, validatsiya: 1–100)
+- [ ] Miqdor so'rash (qo'lda raqam yozish, validatsiya: 1–100)
 - [ ] Tasdiqlash + buyurtma yaratish + buyurtma raqami
 
 ### 3-bosqich: Admin flow (2-3 kun)
