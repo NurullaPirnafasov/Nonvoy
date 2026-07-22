@@ -5,12 +5,12 @@ import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRemove;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.UserState;
 import uz.nonvoy.bot.service.CustomerFlowService;
+import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
 
 import java.util.List;
@@ -20,6 +20,10 @@ import java.util.List;
 public class CustomerFlowServiceImpl implements CustomerFlowService {
 
     private final UserService userService;
+
+    private final ProductService productService;
+
+    private static final String ORDER_BUTTON = "Buyurtma berish";
 
     @Override
     public SendMessage handleUpdate(Update update) {
@@ -36,24 +40,37 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     }
 
     private SendMessage handleIdle(Update update, User user, Long chatId) {
-
-        return SendMessage.builder()
-                .chatId(chatId)
-                .text(user.getName() + ", buyurtma qabul qilish tez orada qo'shiladi")
-                .build();
+        if (update.getMessage().hasText() && update.getMessage().getText().equals(ORDER_BUTTON)) {
+            if (productService.getActiveProduct().isPresent()) {
+                userService.updateState(user, UserState.WAITING_QUANTITY);
+                return SendMessage.builder()
+                        .chatId(chatId)
+                        .text("buyurtma qilmoqchi bo'lgan mahsulot miqdorini kiriting")
+                        .build();
+            }else {
+                return SendMessage.builder()
+                        .chatId(chatId)
+                        .text("Hozircha non tugagan")
+                        .replyMarkup(orderKeyboard())
+                        .build();
+            }
+        }else {
+            return SendMessage.builder()
+                    .chatId(chatId)
+                    .text("buyurtma berish uchun tugmani bosing")
+                    .replyMarkup(orderKeyboard())
+                    .build();
+        }
     }
 
     private SendMessage handleWaitingPhone(Update update, User user, Long chatId) {
         if (update.getMessage().hasContact()) {
             if (user.getTelegramId().equals(update.getMessage().getContact().getUserId())) {
                 userService.savePhone(user, update.getMessage().getContact().getPhoneNumber());
-                ReplyKeyboardRemove remove = ReplyKeyboardRemove.builder()
-                        .removeKeyboard(true)
-                        .build();
                 return SendMessage.builder()
                         .chatId(chatId)
                         .text("Rahmat! Endi bemalol buyurtma bera olasiz")
-                        .replyMarkup(remove)
+                        .replyMarkup(orderKeyboard())
                         .build();
             } else {
                 return SendMessage.builder()
@@ -88,7 +105,17 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private ReplyKeyboardMarkup contactKeyboard(){
+    private ReplyKeyboardMarkup orderKeyboard() {
+        KeyboardButton button = KeyboardButton.builder()
+                .text(ORDER_BUTTON)
+                .build();
+        return ReplyKeyboardMarkup.builder()
+                .keyboardRow(new KeyboardRow(List.of(button)))
+                .resizeKeyboard(true)
+                .build();
+    }
+
+    private ReplyKeyboardMarkup contactKeyboard() {
         KeyboardButton contactButton = KeyboardButton.builder()
                 .text("\uD83D\uDCDE Telefon raqamingizni yuboring")
                 .requestContact(true)
