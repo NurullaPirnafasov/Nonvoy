@@ -6,7 +6,11 @@ import uz.nonvoy.bot.entity.enums.UserState;
 public interface UserService {
     User findOrCreate(Long telegramId, String name);
 
-    User savePhone(User user, String phone);
+    void savePhone(User user, String phone);
 
-    User updateState(User user, UserState newState);
+    void updateState(User user, UserState newState);
+
+    void saveQuantity(int quantity, User user);
+
+    void resetToIdle(User user);
 }

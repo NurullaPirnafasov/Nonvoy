@@ -7,12 +7,16 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
+import uz.nonvoy.bot.entity.Order;
+import uz.nonvoy.bot.entity.Product;
 import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.UserState;
 import uz.nonvoy.bot.service.CustomerFlowService;
+import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -20,10 +24,12 @@ import java.util.List;
 public class CustomerFlowServiceImpl implements CustomerFlowService {
 
     private final UserService userService;
-
     private final ProductService productService;
+    private final OrderService orderService;
 
     private static final String ORDER_BUTTON = "Buyurtma berish";
+    private static final String CONFIRM_YES = "Ha";
+    private static final String CONFIRM_NO = "Yo'q";
 
     @Override
     public SendMessage handleUpdate(Update update) {
@@ -35,31 +41,61 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
             case NEW -> handleNew(update, user, chatId);
             case WAITING_PHONE -> handleWaitingPhone(update, user, chatId);
             case IDLE -> handleIdle(update, user, chatId);
-            default -> handleIdle(update, user, chatId);
+            case WAITING_QUANTITY -> handleWaitingQuantity(update, user, chatId);
+            case CONFIRMING -> handleConfirming(update, user, chatId);
         };
+    }
+
+    private SendMessage handleConfirming(Update update, User user, Long chatId) {
+        if (update.getMessage().hasText()) {
+            if (CONFIRM_YES.equals(update.getMessage().getText())) {
+                Order order = orderService.createOrder(user);
+                return reply(chatId,
+                        "Buyurtma #" + order.getId() + " yuborildi. Jami: " + order.getTotalAmount() + " so'm",
+                        orderKeyboard());
+            } else if (CONFIRM_NO.equals(update.getMessage().getText())) {
+                userService.resetToIdle(user);
+                return reply(chatId, "Buyurtma bekor qilindi", orderKeyboard());
+            }
+        }
+        return reply(chatId, "buyurtmani tasdiqlash uchun Ha yoki Yo'q ni tanlang", confirmKeyboard());
+    }
+
+    private SendMessage handleWaitingQuantity(Update update, User user, Long chatId) {
+        if (!update.getMessage().hasText()) {
+            return reply(chatId, "Iltimos raqam kiriting");
+        }
+        int quantity;
+        try {
+            quantity = Integer.parseInt(update.getMessage().getText().trim());
+        } catch (NumberFormatException e) {
+            return reply(chatId, "miqdorni to'g'ri kiriting");
+        }
+        if (quantity <= 0) {
+            return reply(chatId, "miqdorni to'g'ri kiriting");
+        }
+        Product product = productService.getActiveProduct().orElse(null);
+        if (product == null) {
+            userService.resetToIdle(user);
+            return reply(chatId, "Kechirasiz, mahsulot tugadi", orderKeyboard());
+        }
+        userService.saveQuantity(quantity, user);
+        BigDecimal totalPrice = orderService.calculateTotal(product, quantity);
+        return reply(chatId,
+                quantity + " ta " + product.getName() + " - " + totalPrice + " so'm. Buyurtmani tasdiqlaysizmi?",
+                confirmKeyboard());
     }
 
     private SendMessage handleIdle(Update update, User user, Long chatId) {
         if (update.getMessage().hasText() && update.getMessage().getText().equals(ORDER_BUTTON)) {
             if (productService.getActiveProduct().isPresent()) {
                 userService.updateState(user, UserState.WAITING_QUANTITY);
-                return SendMessage.builder()
-                        .chatId(chatId)
-                        .text("buyurtma qilmoqchi bo'lgan mahsulot miqdorini kiriting")
-                        .build();
-            }else {
-                return SendMessage.builder()
-                        .chatId(chatId)
-                        .text("Hozircha non tugagan")
-                        .replyMarkup(orderKeyboard())
-                        .build();
+                return reply(chatId, "buyurtma qilmoqchi bo'lgan mahsulot miqdorini kiriting");
+            } else {
+                return reply(chatId, "Hozircha non tugagan", orderKeyboard());
             }
-        }else {
-            return SendMessage.builder()
-                    .chatId(chatId)
-                    .text("buyurtma berish uchun tugmani bosing")
-                    .replyMarkup(orderKeyboard())
-                    .build();
+        } else {
+            return reply(chatId, "buyurtma berish uchun tugmani bosing", orderKeyboard());
         }
     }
 
@@ -67,49 +103,60 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         if (update.getMessage().hasContact()) {
             if (user.getTelegramId().equals(update.getMessage().getContact().getUserId())) {
                 userService.savePhone(user, update.getMessage().getContact().getPhoneNumber());
-                return SendMessage.builder()
-                        .chatId(chatId)
-                        .text("Rahmat! Endi bemalol buyurtma bera olasiz")
-                        .replyMarkup(orderKeyboard())
-                        .build();
+                return reply(chatId, "Rahmat! Endi bemalol buyurtma bera olasiz", orderKeyboard());
             } else {
-                return SendMessage.builder()
-                        .chatId(chatId)
-                        .text("O'zingizning raqamingizni yuboring")
-                        .replyMarkup(contactKeyboard())
-                        .build();
+                return reply(chatId, "O'zingizning raqamingizni yuboring", contactKeyboard());
             }
         } else {
-            return SendMessage.builder()
-                    .chatId(chatId)
-                    .text("Iltimos telefon raqamingizni yuboring")
-                    .replyMarkup(contactKeyboard())
-                    .build();
+            return reply(chatId, "Iltimos telefon raqamingizni yuboring", contactKeyboard());
         }
     }
 
     private SendMessage handleNew(Update update, User user, Long chatId) {
         if (update.getMessage().hasText() && update.getMessage().getText().equals("/start")) {
             userService.updateState(user, UserState.WAITING_PHONE);
-            String text = "Botdan to'liq foydalanishingiz uchun telefon raqamingizni yuboring";
-            return SendMessage.builder()
-                    .chatId(chatId)
-                    .text(text)
-                    .replyMarkup(contactKeyboard())
-                    .build();
+            return reply(chatId,
+                    "Botdan to'liq foydalanishingiz uchun telefon raqamingizni yuboring",
+                    contactKeyboard());
         } else {
-            return SendMessage.builder()
-                    .chatId(chatId)
-                    .text("/start buyrug'ini yuboring")
-                    .build();
+            return reply(chatId, "/start buyrug'ini yuboring");
         }
+    }
+
+    private SendMessage reply(Long chatId, String text) {
+        return SendMessage.builder()
+                .chatId(chatId)
+                .text(text)
+                .build();
+    }
+
+    private SendMessage reply(Long chatId, String text, ReplyKeyboardMarkup keyboard) {
+        return SendMessage.builder()
+                .chatId(chatId)
+                .text(text)
+                .replyMarkup(keyboard)
+                .build();
+    }
+
+    private ReplyKeyboardMarkup confirmKeyboard() {
+        KeyboardButton button1 = KeyboardButton.builder()
+                .text(CONFIRM_YES)
+                .build();
+        KeyboardButton button2 = KeyboardButton.builder()
+                .text(CONFIRM_NO)
+                .build();
+        return ReplyKeyboardMarkup.builder()
+                .keyboardRow(new KeyboardRow(List.of(button1, button2)))
+                .resizeKeyboard(true)
+                .build();
     }
 
     private ReplyKeyboardMarkup orderKeyboard() {
         KeyboardButton button = KeyboardButton.builder()
                 .text(ORDER_BUTTON)
                 .build();
-        return ReplyKeyboardMarkup.builder()
+        return ReplyKeyboardMarkup
+                .builder()
                 .keyboardRow(new KeyboardRow(List.of(button)))
                 .resizeKeyboard(true)
                 .build();

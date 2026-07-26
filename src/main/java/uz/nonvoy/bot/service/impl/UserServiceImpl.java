@@ -28,15 +28,29 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User savePhone(User user, String phone) {
+    public void savePhone(User user, String phone) {
         user.setPhone(phone);
         user.setState(UserState.IDLE);
-        return userRepository.save(user);
+        userRepository.save(user);
     }
 
     @Override
-    public User updateState(User user, UserState newState) {
+    public void updateState(User user, UserState newState) {
         user.setState(newState);
-        return userRepository.save(user);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void saveQuantity(int quantity, User user) {
+        user.setDraftQuantity(quantity);
+        user.setState(UserState.CONFIRMING);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void resetToIdle(User user) {
+        user.setState(UserState.IDLE);
+        user.setDraftQuantity(null);
+        userRepository.save(user);
     }
 }

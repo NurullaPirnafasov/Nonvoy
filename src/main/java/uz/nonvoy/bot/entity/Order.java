@@ -1,10 +1,7 @@
 package uz.nonvoy.bot.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import uz.nonvoy.bot.entity.base.Auditable;
 import uz.nonvoy.bot.entity.enums.OrderStatus;
 
@@ -15,6 +12,7 @@ import java.math.BigDecimal;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 @Table(name = "orders")
 public class Order extends Auditable {
     @ManyToOne
@@ -22,6 +20,7 @@ public class Order extends Auditable {
     private User user;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private OrderStatus status=OrderStatus.NEW;
     private BigDecimal totalAmount;
 }
