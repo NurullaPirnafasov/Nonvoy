@@ -51,7 +51,7 @@ Foydalanuvchi flow'da qaysi qadamda ekani DB'da saqlanadi (`User.state` enum). R
 ## Mijoz flow
 
 1. `/start` → agar telefon yo'q bo'lsa, contact button orqali so'raladi (bir marta)
-2. "Nechta non kerak?" → foydalanuvchi raqamni yozib kiritadi (validatsiya: 1–100)
+2. "Nechta non kerak?" → foydalanuvchi raqamni yozib kiritadi (validatsiya: kamida 1 ta butun son, yuqori chegara yo'q — ko'p buyurtma normal)
 3. Tasdiqlash → "Buyurtma #47 qabul qilindi ✅ Jami: 10 ta non — 50 000 so'm"
 4. Status o'zgarganda avtomatik xabar (ayniqsa READY: "Noningiz tayyor, olib ketishingiz mumkin 🍞")
 5. Tungi buyurtmalar ham qabul qilinadi — NEW bo'lib navbatda turadi, novvoy ertalab ko'radi. Ish vaqti validatsiyasi YO'Q.
@@ -82,10 +82,10 @@ Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
 - [ ] Status o'tish validatsiyasi (service metod)
 
 ### 2-bosqich: Mijoz flow (3-4 kun)
-- [ ] State management (User.state asosida update routing)
-- [ ] Ro'yxatdan o'tish (contact button)
-- [ ] Miqdor so'rash (qo'lda raqam yozish, validatsiya: 1–100)
-- [ ] Tasdiqlash + buyurtma yaratish + buyurtma raqami
+- [x] State management (User.state asosida update routing)
+- [x] Ro'yxatdan o'tish (contact button)
+- [x] Miqdor so'rash (qo'lda raqam yozish, validatsiya: kamida 1, yuqori chegara yo'q)
+- [x] Tasdiqlash + buyurtma yaratish + buyurtma raqami
 
 ### 3-bosqich: Admin flow (2-3 kun)
 - [ ] Buyurtma kartasi admin guruhga yuborish
@@ -117,6 +117,12 @@ Bu loyiha GitHub'da public repo bo'ladi — portfolio'ning bir qismi. Qoidalar:
 5. **Birinchi commit'dan oldin:** `.gitignore` (target/, .idea/, .env, *.iml), token va parollar HECH QACHON commit qilinmaydi.
 6. **README.md** loyiha oxirida emas, boshida yaratiladi va bosqichma-bosqich to'ldiriladi (nima, nega, stack, ishga tushirish).
 7. **Claude'ning roli:** har vazifa yakunida Claude "hozir commit payti, message taxminan bunday" deb eslatib turadi va commit message'larni review qiladi. Vazifa berilganda qaysi branch'da ishlash ham aytiladi.
+
+## Rejalashtirilgan (MVP'dan keyingi bosqichlar)
+
+Bular MVP'ga kirmaydi, lekin keyin qo'shish rejalashtirilgan (tartib taxminiy):
+
+- **Chek orqali to'lov tekshiruvi (naqd emas, karta o'tkazma):** buyurtma tasdiqlangach mijoz to'lov chekining rasmini yuboradi. Rasm buyurtma kartasiga qo'shilib admin guruhga tushadi. Novvoy pul o'tganini o'zi tekshiradi va shundan keyin "✅ Qabul" yoki "❌ Bekor" qiladi. Ya'ni to'lov integratsiyasi (Click/Payme) YO'Q — tekshiruv qo'lda, chek — shunchaki rasm.
 
 ## Keyinroqqa qoldirilgan (MVP'ga KIRMAYDI)
 
