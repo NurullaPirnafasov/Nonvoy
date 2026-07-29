@@ -2,6 +2,7 @@ package uz.nonvoy.bot.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
@@ -32,7 +33,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private static final String CONFIRM_NO = "Yo'q";
 
     @Override
-    public SendMessage handleUpdate(Update update) {
+    public List<BotApiMethod<?>> handleMessage(Update update) {
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         String name = update.getMessage().getFrom().getFirstName();
@@ -46,7 +47,12 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         };
     }
 
-    private SendMessage handleConfirming(Update update, User user, Long chatId) {
+    @Override
+    public List<BotApiMethod<?>> handleCallback(Update update) {
+        return null;
+    }
+
+    private List<BotApiMethod<?>> handleConfirming(Update update, User user, Long chatId) {
         if (update.getMessage().hasText()) {
             if (CONFIRM_YES.equals(update.getMessage().getText())) {
                 Order order = orderService.createOrder(user);
@@ -61,7 +67,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         return reply(chatId, "buyurtmani tasdiqlash uchun Ha yoki Yo'q ni tanlang", confirmKeyboard());
     }
 
-    private SendMessage handleWaitingQuantity(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleWaitingQuantity(Update update, User user, Long chatId) {
         if (!update.getMessage().hasText()) {
             return reply(chatId, "Iltimos raqam kiriting");
         }
@@ -86,7 +92,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                 confirmKeyboard());
     }
 
-    private SendMessage handleIdle(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleIdle(Update update, User user, Long chatId) {
         if (update.getMessage().hasText() && update.getMessage().getText().equals(ORDER_BUTTON)) {
             if (productService.getActiveProduct().isPresent()) {
                 userService.updateState(user, UserState.WAITING_QUANTITY);
@@ -99,7 +105,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private SendMessage handleWaitingPhone(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleWaitingPhone(Update update, User user, Long chatId) {
         if (update.getMessage().hasContact()) {
             if (user.getTelegramId().equals(update.getMessage().getContact().getUserId())) {
                 userService.savePhone(user, update.getMessage().getContact().getPhoneNumber());
@@ -112,7 +118,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private SendMessage handleNew(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleNew(Update update, User user, Long chatId) {
         if (update.getMessage().hasText() && update.getMessage().getText().equals("/start")) {
             userService.updateState(user, UserState.WAITING_PHONE);
             return reply(chatId,
@@ -123,14 +129,22 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private SendMessage reply(Long chatId, String text) {
+    private List<BotApiMethod<?>> reply(Long chatId, String text) {
+        return List.of(message(chatId, text));
+    }
+
+    private SendMessage message(Long chatId, String text) {
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
                 .build();
     }
 
-    private SendMessage reply(Long chatId, String text, ReplyKeyboardMarkup keyboard) {
+    private List<BotApiMethod<?>> reply(Long chatId, String text, ReplyKeyboardMarkup keyboard) {
+        return List.of(message(chatId, text, keyboard));
+    }
+
+    private SendMessage message(Long chatId, String text, ReplyKeyboardMarkup keyboard) {
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
