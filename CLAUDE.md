@@ -94,6 +94,8 @@ Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
 
 ### 4-bosqich: Sayqallash va topshirish (2-3 kun)
 - [ ] Exception handling, edge case'lar (ikki marta bosish, noto'g'ri raqam, bekor qilingan buyurtmani "Tayyor" qilish)
+- [ ] **Matn/kontakt bo'lmagan update'ga javob berish.** Hozir `NonvoyTelegramBot.isTextOrContact` filtridan o'tmagan hamma narsa (rasm, stiker, ovoz) jimgina tashlanadi — foydalanuvchi stiker yuborsa bot javob bermaydi va nima kutilayotganini bilmaydi. Har state uchun "hozir nima kerakligi"ni eslatuvchi javob bo'lsin. Eslatma: chek rasmini qabul qilish (rejalashtirilgan feature) aynan shu filtrga tiqiladi
+- [ ] **README.md** — nima, nega, stack, ishga tushirish. Repo public va portfolio'ning bir qismi, README'siz repo tashrif buyuruvchi uchun bo'sh
 - [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas)
 - [ ] Novvoyga ko'rsatish, real test, tuzatishlar
 
