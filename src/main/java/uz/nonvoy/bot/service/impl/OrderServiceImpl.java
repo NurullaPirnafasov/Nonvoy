@@ -59,7 +59,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new IllegalStateException("Faol mahsulot yo'q"));
         int quantity = user.getDraftQuantity();
         Order order = Order.builder()
-                .totalAmount(calculateTotal(product, quantity))
+                .totalAmountMoney(calculateTotal(product, quantity))
                 .user(user)
                 .build();
         Order savedOrder = orderRepository.save(order);
