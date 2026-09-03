@@ -5,8 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import uz.nonvoy.bot.service.AdminFlowService;
@@ -60,17 +63,9 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
     private void route(Update update) {
         List<BotApiMethod<?>> methods;
         if (isHandledMessage(update)) {
-            if (adminGroupId.equals(update.getMessage().getChatId())) {
-                methods = adminFlowService.handleMessage(update);
-            } else {
-                methods = customerFlowService.handleMessage(update);
-            }
+            methods = routeMessage(update);
         } else if (update.hasCallbackQuery()) {
-            if (adminGroupId.equals(update.getCallbackQuery().getMessage().getChatId())) {
-                methods = adminFlowService.handleCallback(update);
-            } else {
-                methods = customerFlowService.handleCallback(update);
-            }
+            methods = routeCallback(update);
         } else return;
 
         if (methods == null || methods.isEmpty()) return;
@@ -83,17 +78,57 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         }
     }
 
+    /**
+     * Mijoz flow'i faqat shaxsiy chatda ishlaydi. Avval "admin guruhi bo'lmasa - mijoz"
+     * degan mantiq bor edi: bot boshqa guruhga qo'shilsa yoki admin-group-id noto'g'ri
+     * bo'lsa, o'sha guruhda buyurtma klaviaturasi paydo bo'lardi.
+     */
+    private List<BotApiMethod<?>> routeMessage(Update update) {
+        Message message = update.getMessage();
+        if (message.getChat().isUserChat()) {
+            return customerFlowService.handleMessage(update);
+        }
+        if (adminGroupId.equals(message.getChatId())) {
+            return adminFlowService.handleMessage(update);
+        }
+        return List.of();
+    }
+
+    private List<BotApiMethod<?>> routeCallback(Update update) {
+        CallbackQuery callbackQuery = update.getCallbackQuery();
+        // 48 soatdan eski xabar uchun Telegram Message emas, InaccessibleMessage yuboradi:
+        // chat ma'lumoti ham, matni ham yo'q, ya'ni kartani tahrirlab bo'lmaydi.
+        // MaybeInaccessibleMessage.isUserMessage() bu holatda ishonchsiz (doim true),
+        // shuning uchun turini o'zini tekshiramiz
+        if (!(callbackQuery.getMessage() instanceof Message message)) {
+            return List.of(AnswerCallbackQuery.builder()
+                    .callbackQueryId(callbackQuery.getId())
+                    .text("Bu xabar juda eski. Botga /start yuboring")
+                    .showAlert(true)
+                    .build());
+        }
+        if (message.getChat().isUserChat()) {
+            return customerFlowService.handleCallback(update);
+        }
+        if (adminGroupId.equals(message.getChatId())) {
+            return adminFlowService.handleCallback(update);
+        }
+        return List.of();
+    }
+
     /** Foydalanuvchi javobsiz qolmasin: nima bo'lganini bilmasa ham, xato borligini bilsin. */
     private void notifyFailure(Update update) {
-        Long chatId = null;
+        Message message = null;
         if (update.hasMessage()) {
-            chatId = update.getMessage().getChatId();
-        } else if (update.hasCallbackQuery() && update.getCallbackQuery().getMessage() != null) {
-            chatId = update.getCallbackQuery().getMessage().getChatId();
+            message = update.getMessage();
+        } else if (update.hasCallbackQuery() && update.getCallbackQuery().getMessage() instanceof Message m) {
+            message = m;
         }
-        if (chatId == null) {
+        // Begona guruhda gapirmaymiz - u yerda bot umuman javob bermasligi kerak
+        if (message == null || !(message.getChat().isUserChat() || adminGroupId.equals(message.getChatId()))) {
             return;
         }
+        Long chatId = message.getChatId();
         try {
             execute(SendMessage.builder()
                     .chatId(chatId)
