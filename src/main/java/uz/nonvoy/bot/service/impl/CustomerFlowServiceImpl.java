@@ -41,6 +41,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     @Value("${bot.admin-group-id}")
     private Long adminGroupId;
 
+    private static final String START_COMMAND = "/start";
     private static final String ORDER_BUTTON = "Buyurtma berish";
     private static final String CONFIRM_YES = "CONFIRM:YES";
     private static final String CONFIRM_NO = "CONFIRM:NO";
@@ -51,12 +52,17 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         Long telegramId = update.getMessage().getFrom().getId();
         String name = update.getMessage().getFrom().getFirstName();
         User user = userService.findOrCreate(telegramId, name);
+        // /start har qanday state'dan ishlaydi: aks holda miqdor so'ralayotganda
+        // foydalanuvchi raqam kiritmaguncha flow'dan chiqa olmaydi
+        if (isStartCommand(update)) {
+            return handleStart(user, chatId);
+        }
         return switch (user.getState()) {
-            case NEW -> handleNew(update, user, chatId);
+            case NEW -> handleNew(chatId);
             case WAITING_PHONE -> handleWaitingPhone(update, user, chatId);
             case IDLE -> handleIdle(update, user, chatId);
             case WAITING_QUANTITY -> handleWaitingQuantity(update, user, chatId);
-            case CONFIRMING -> handleConfirming(update, user, chatId);
+            case CONFIRMING -> handleConfirming(chatId);
         };
     }
 
@@ -125,22 +131,22 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         return list;
     }
 
-    private List<BotApiMethod<?>> handleConfirming(Update update, User user, Long chatId) {
-        return reply(chatId, "buyurtmani tasdiqlash uchun yuqoridagi Ha yoki Yo'qni bosing");
+    private List<BotApiMethod<?>> handleConfirming(Long chatId) {
+        return reply(chatId, "Buyurtmani tasdiqlash uchun yuqoridagi Ha yoki Yo'qni bosing.\nBekor qilish uchun /start yuboring");
     }
 
     private List<BotApiMethod<?>> handleWaitingQuantity(Update update, User user, Long chatId) {
         if (!update.getMessage().hasText()) {
-            return reply(chatId, "Iltimos raqam kiriting");
+            return reply(chatId, "Nechta non kerakligini raqam bilan yozing.\nBekor qilish uchun /start yuboring");
         }
         int quantity;
         try {
             quantity = Integer.parseInt(update.getMessage().getText().trim());
         } catch (NumberFormatException e) {
-            return reply(chatId, "miqdorni to'g'ri kiriting");
+            return reply(chatId, "Miqdorni raqam bilan yozing, masalan: 10.\nBekor qilish uchun /start yuboring");
         }
         if (quantity <= 0) {
-            return reply(chatId, "miqdorni to'g'ri kiriting");
+            return reply(chatId, "Miqdor kamida 1 ta bo'lishi kerak.\nBekor qilish uchun /start yuboring");
         }
         Product product = productService.getActiveProduct().orElse(null);
         if (product == null) {
@@ -158,7 +164,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         if (update.getMessage().hasText() && update.getMessage().getText().equals(ORDER_BUTTON)) {
             if (productService.getActiveProduct().isPresent()) {
                 userService.updateState(user, UserState.WAITING_QUANTITY);
-                return reply(chatId, "buyurtma qilmoqchi bo'lgan mahsulot miqdorini kiriting");
+                return reply(chatId, "Nechta non kerak? Raqam bilan yozing.\nBekor qilish uchun /start yuboring");
             } else {
                 return reply(chatId, "Hozircha non tugagan", orderKeyboard());
             }
@@ -180,15 +186,27 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private List<BotApiMethod<?>> handleNew(Update update, User user, Long chatId) {
-        if (update.getMessage().hasText() && update.getMessage().getText().equals("/start")) {
+    private List<BotApiMethod<?>> handleNew(Long chatId) {
+        return reply(chatId, "/start buyrug'ini yuboring");
+    }
+
+    /**
+     * Ro'yxatdan o'tmaganni telefon so'rashga, o'tganni esa boshlang'ich holatga qaytaradi.
+     * Yarim qolgan buyurtma qoralamasi (draftQuantity) tozalanadi.
+     */
+    private List<BotApiMethod<?>> handleStart(User user, Long chatId) {
+        if (user.getPhone() == null || user.getPhone().isBlank()) {
             userService.updateState(user, UserState.WAITING_PHONE);
             return reply(chatId,
                     "Botdan to'liq foydalanishingiz uchun telefon raqamingizni yuboring",
                     contactKeyboard());
-        } else {
-            return reply(chatId, "/start buyrug'ini yuboring");
         }
+        userService.resetToIdle(user);
+        return reply(chatId, "Buyurtma berish uchun tugmani bosing", orderKeyboard());
+    }
+
+    private boolean isStartCommand(Update update) {
+        return update.getMessage().hasText() && START_COMMAND.equals(update.getMessage().getText().trim());
     }
 
     /** Yangi buyurtma kartasi — novvoy guruhda ko'radi va shu yerda statusni boshqaradi. */
