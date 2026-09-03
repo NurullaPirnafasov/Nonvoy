@@ -65,7 +65,8 @@ javobini oladi.
 4. Status o'zgarganda avtomatik xabar keladi (`Noningiz tayyor, olib ketishingiz mumkin 🍞`)
 
 Har bir state matndan boshqa narsaga ham (rasm, stiker, ovoz) javob beradi va nima
-kutilayotganini eslatadi — foydalanuvchi jimlikka qolmaydi.
+kutilayotganini eslatadi — foydalanuvchi jimlikka qolmaydi. `/start` istalgan qadamda
+ishlaydi va boshlang'ich holatga qaytaradi, ya'ni yarim qolgan buyurtmadan chiqish yo'li bor.
 
 ## Novvoy (admin) flow
 
@@ -126,6 +127,19 @@ hozircha bazadan o'zgartiriladi.
 
 Long polling ishlatilgani uchun statik IP yoki HTTPS domen shart emas — bot oddiy uy
 kompyuterida ham ishlaydi.
+
+## Testlar
+
+```bash
+./mvnw test
+```
+
+Testlar DB va Telegram tokenisiz ishlaydi — qamrab olingani biznes qoidalari va sof
+funksiyalar: status o'tishlari (`OrderServiceImplTest`, Mockito bilan), narx muzlatish,
+callback data parsing va buyurtma kartasini formatlash.
+
+Bot handler'lari va repozitoriylar uchun test yo'q: birinchisi Telegram API'ga,
+ikkinchisi haqiqiy bazaga bog'liq. Ular kerak bo'lganda Testcontainers bilan qo'shiladi.
 
 ## Rejalashtirilgan
 
