@@ -76,10 +76,10 @@ Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
 ## Reja (kuniga 3-4 soat, jami ~2-2.5 hafta)
 
 ### 1-bosqich: Skelet va domain (2 kun)
-- [ ] Spring Boot loyiha setup (pom.xml, application.yml, PostgreSQL ulanish)
-- [ ] BotFather'da bot yaratish, long polling, `/start`ga oddiy javob
-- [ ] 4 ta entity + Auditable + enum'lar + repository'lar
-- [ ] Status o'tish validatsiyasi (service metod)
+- [x] Spring Boot loyiha setup (pom.xml, application.yml, PostgreSQL ulanish)
+- [x] BotFather'da bot yaratish, long polling, `/start`ga oddiy javob
+- [x] 4 ta entity + Auditable + enum'lar + repository'lar
+- [x] Status o'tish validatsiyasi (service metod)
 
 ### 2-bosqich: Mijoz flow (3-4 kun)
 - [x] State management (User.state asosida update routing)
@@ -88,12 +88,14 @@ Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
 - [x] Tasdiqlash + buyurtma yaratish + buyurtma raqami
 
 ### 3-bosqich: Admin flow (2-3 kun)
-- [ ] Buyurtma kartasi admin guruhga yuborish
-- [ ] Callback tugmalar → status o'zgartirish → mijozga notification
-- [ ] `/mahsulotlar` boshqaruvi (toggle)
+- [x] Buyurtma kartasi admin guruhga yuborish
+- [x] Callback tugmalar → status o'zgartirish → mijozga notification
+- [x] `/mahsulotlar` boshqaruvi (toggle)
 
 ### 4-bosqich: Sayqallash va topshirish (2-3 kun)
-- [ ] Exception handling, edge case'lar (ikki marta bosish, noto'g'ri raqam, bekor qilingan buyurtmani "Tayyor" qilish)
+- [x] Exception handling, edge case'lar (ikki marta bosish, noto'g'ri raqam, bekor qilingan buyurtmani "Tayyor" qilish)
+- [x] **Matn/kontakt bo'lmagan update'ga javob berish.** Hozir `NonvoyTelegramBot.isTextOrContact` filtridan o'tmagan hamma narsa (rasm, stiker, ovoz) jimgina tashlanadi — foydalanuvchi stiker yuborsa bot javob bermaydi va nima kutilayotganini bilmaydi. Har state uchun "hozir nima kerakligi"ni eslatuvchi javob bo'lsin. Eslatma: chek rasmini qabul qilish (rejalashtirilgan feature) aynan shu filtrga tiqiladi
+- [x] **README.md** — nima, nega, stack, ishga tushirish. Repo public va portfolio'ning bir qismi, README'siz repo tashrif buyuruvchi uchun bo'sh
 - [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas)
 - [ ] Novvoyga ko'rsatish, real test, tuzatishlar
 

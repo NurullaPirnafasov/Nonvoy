@@ -22,5 +22,5 @@ public class Order extends Auditable {
     @Column(nullable = false)
     @Builder.Default
     private OrderStatus status=OrderStatus.NEW;
-    private BigDecimal totalAmount;
+    private BigDecimal totalAmountMoney;
 }

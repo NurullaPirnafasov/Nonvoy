@@ -1,10 +1,18 @@
 package uz.nonvoy.bot.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import uz.nonvoy.bot.entity.Order;
@@ -15,8 +23,11 @@ import uz.nonvoy.bot.service.CustomerFlowService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
+import uz.nonvoy.bot.util.OrderCardFormatter;
+import uz.nonvoy.bot.util.PriceFormatter;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,52 +38,115 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private final ProductService productService;
     private final OrderService orderService;
 
+    @Value("${bot.admin-group-id}")
+    private Long adminGroupId;
+
+    private static final String START_COMMAND = "/start";
     private static final String ORDER_BUTTON = "Buyurtma berish";
-    private static final String CONFIRM_YES = "Ha";
-    private static final String CONFIRM_NO = "Yo'q";
+    private static final String CONFIRM_YES = "CONFIRM:YES";
+    private static final String CONFIRM_NO = "CONFIRM:NO";
 
     @Override
-    public SendMessage handleUpdate(Update update) {
+    public List<BotApiMethod<?>> handleMessage(Update update) {
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         String name = update.getMessage().getFrom().getFirstName();
         User user = userService.findOrCreate(telegramId, name);
+        // /start har qanday state'dan ishlaydi: aks holda miqdor so'ralayotganda
+        // foydalanuvchi raqam kiritmaguncha flow'dan chiqa olmaydi
+        if (isStartCommand(update)) {
+            return handleStart(user, chatId);
+        }
         return switch (user.getState()) {
-            case NEW -> handleNew(update, user, chatId);
+            case NEW -> handleNew(chatId);
             case WAITING_PHONE -> handleWaitingPhone(update, user, chatId);
             case IDLE -> handleIdle(update, user, chatId);
             case WAITING_QUANTITY -> handleWaitingQuantity(update, user, chatId);
-            case CONFIRMING -> handleConfirming(update, user, chatId);
+            case CONFIRMING -> handleConfirming(chatId);
         };
     }
 
-    private SendMessage handleConfirming(Update update, User user, Long chatId) {
-        if (update.getMessage().hasText()) {
-            if (CONFIRM_YES.equals(update.getMessage().getText())) {
-                Order order = orderService.createOrder(user);
-                return reply(chatId,
-                        "Buyurtma #" + order.getId() + " yuborildi. Jami: " + order.getTotalAmount() + " so'm",
-                        orderKeyboard());
-            } else if (CONFIRM_NO.equals(update.getMessage().getText())) {
-                userService.resetToIdle(user);
-                return reply(chatId, "Buyurtma bekor qilindi", orderKeyboard());
-            }
+    @Override
+    public List<BotApiMethod<?>> handleCallback(Update update) {
+        CallbackQuery callbackQuery = update.getCallbackQuery();
+        String id = callbackQuery.getId();
+        String data = callbackQuery.getData();
+        Long telegramId = callbackQuery.getFrom().getId();
+        String name = callbackQuery.getFrom().getFirstName();
+        Long chatId = callbackQuery.getMessage().getChatId();
+        Integer messageId = callbackQuery.getMessage().getMessageId();
+        User user = userService.findOrCreate(telegramId, name);
+        List<BotApiMethod<?>> list = new ArrayList<>();
+        if (user.getState() != UserState.CONFIRMING) {
+            AnswerCallbackQuery answerCallbackQuery = AnswerCallbackQuery.builder()
+                    .callbackQueryId(id)
+                    .text("Bu buyurtma allaqachon rasmiylashtirilgan")
+                    .build();
+            list.add(answerCallbackQuery);
+            return list;
         }
-        return reply(chatId, "buyurtmani tasdiqlash uchun Ha yoki Yo'q ni tanlang", confirmKeyboard());
+        String answerText;
+        if (CONFIRM_YES.equals(data) || CONFIRM_NO.equals(data)) {
+            answerText = null;
+        } else {
+            answerText = "Buyurtmani rasmiylashtirish uchun Ha yoki Yo'qni bosing";
+        }
+        AnswerCallbackQuery answerCallbackQuery = AnswerCallbackQuery.builder()
+                .callbackQueryId(id)
+                .text(answerText)
+                .build();
+        list.add(answerCallbackQuery);
+        if (CONFIRM_YES.equals(data)) {
+            Integer quantity = user.getDraftQuantity();
+            Order order;
+            try {
+                order = orderService.createOrder(user);
+            } catch (IllegalStateException e) {
+                // Miqdor kiritilgandan keyin novvoy mahsulotni "tugadi" qilib qo'ygan bo'lishi mumkin
+                userService.resetToIdle(user);
+                list.add(EditMessageText.builder()
+                        .chatId(chatId)
+                        .messageId(messageId)
+                        .text("Kechirasiz, mahsulot tugadi. Buyurtma rasmiylashtirilmadi")
+                        .build());
+                list.add(message(chatId, "Keyinroq urinib ko'ring", orderKeyboard()));
+                return list;
+            }
+            EditMessageText edit = EditMessageText.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .text("Buyurtma #" + order.getId() + " qabul qilindi ✅ Jami: " + quantity + " ta non — " + PriceFormatter.formatPrice(order.getTotalAmountMoney()) + " so'm")
+                    .build();
+            list.add(edit);
+            list.add(adminCard(order));
+        } else if (CONFIRM_NO.equals(data)) {
+            userService.resetToIdle(user);
+            EditMessageText edit = EditMessageText.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .text("Buyurtma bekor qilindi")
+                    .build();
+            list.add(edit);
+        }
+        return list;
     }
 
-    private SendMessage handleWaitingQuantity(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleConfirming(Long chatId) {
+        return reply(chatId, "Buyurtmani tasdiqlash uchun yuqoridagi Ha yoki Yo'qni bosing.\nBekor qilish uchun /start yuboring");
+    }
+
+    private List<BotApiMethod<?>> handleWaitingQuantity(Update update, User user, Long chatId) {
         if (!update.getMessage().hasText()) {
-            return reply(chatId, "Iltimos raqam kiriting");
+            return reply(chatId, "Nechta non kerakligini raqam bilan yozing.\nBekor qilish uchun /start yuboring");
         }
         int quantity;
         try {
             quantity = Integer.parseInt(update.getMessage().getText().trim());
         } catch (NumberFormatException e) {
-            return reply(chatId, "miqdorni to'g'ri kiriting");
+            return reply(chatId, "Miqdorni raqam bilan yozing, masalan: 10.\nBekor qilish uchun /start yuboring");
         }
         if (quantity <= 0) {
-            return reply(chatId, "miqdorni to'g'ri kiriting");
+            return reply(chatId, "Miqdor kamida 1 ta bo'lishi kerak.\nBekor qilish uchun /start yuboring");
         }
         Product product = productService.getActiveProduct().orElse(null);
         if (product == null) {
@@ -82,15 +156,15 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         userService.saveQuantity(quantity, user);
         BigDecimal totalPrice = orderService.calculateTotal(product, quantity);
         return reply(chatId,
-                quantity + " ta " + product.getName() + " - " + totalPrice + " so'm. Buyurtmani tasdiqlaysizmi?",
+                quantity + " ta " + product.getName() + " — " + PriceFormatter.formatPrice(totalPrice) + " so'm. Buyurtmani tasdiqlaysizmi?",
                 confirmKeyboard());
     }
 
-    private SendMessage handleIdle(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleIdle(Update update, User user, Long chatId) {
         if (update.getMessage().hasText() && update.getMessage().getText().equals(ORDER_BUTTON)) {
             if (productService.getActiveProduct().isPresent()) {
                 userService.updateState(user, UserState.WAITING_QUANTITY);
-                return reply(chatId, "buyurtma qilmoqchi bo'lgan mahsulot miqdorini kiriting");
+                return reply(chatId, "Nechta non kerak? Raqam bilan yozing.\nBekor qilish uchun /start yuboring");
             } else {
                 return reply(chatId, "Hozircha non tugagan", orderKeyboard());
             }
@@ -99,7 +173,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private SendMessage handleWaitingPhone(Update update, User user, Long chatId) {
+    private List<BotApiMethod<?>> handleWaitingPhone(Update update, User user, Long chatId) {
         if (update.getMessage().hasContact()) {
             if (user.getTelegramId().equals(update.getMessage().getContact().getUserId())) {
                 userService.savePhone(user, update.getMessage().getContact().getPhoneNumber());
@@ -112,25 +186,54 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private SendMessage handleNew(Update update, User user, Long chatId) {
-        if (update.getMessage().hasText() && update.getMessage().getText().equals("/start")) {
+    private List<BotApiMethod<?>> handleNew(Long chatId) {
+        return reply(chatId, "/start buyrug'ini yuboring");
+    }
+
+    /**
+     * Ro'yxatdan o'tmaganni telefon so'rashga, o'tganni esa boshlang'ich holatga qaytaradi.
+     * Yarim qolgan buyurtma qoralamasi (draftQuantity) tozalanadi.
+     */
+    private List<BotApiMethod<?>> handleStart(User user, Long chatId) {
+        if (user.getPhone() == null || user.getPhone().isBlank()) {
             userService.updateState(user, UserState.WAITING_PHONE);
             return reply(chatId,
                     "Botdan to'liq foydalanishingiz uchun telefon raqamingizni yuboring",
                     contactKeyboard());
-        } else {
-            return reply(chatId, "/start buyrug'ini yuboring");
         }
+        userService.resetToIdle(user);
+        return reply(chatId, "Buyurtma berish uchun tugmani bosing", orderKeyboard());
     }
 
-    private SendMessage reply(Long chatId, String text) {
+    private boolean isStartCommand(Update update) {
+        return update.getMessage().hasText() && START_COMMAND.equals(update.getMessage().getText().trim());
+    }
+
+    /** Yangi buyurtma kartasi — novvoy guruhda ko'radi va shu yerda statusni boshqaradi. */
+    private SendMessage adminCard(Order order) {
+        return SendMessage.builder()
+                .chatId(adminGroupId)
+                .text(OrderCardFormatter.card(order, orderService.findItems(order)))
+                .replyMarkup(OrderCardFormatter.keyboard(order))
+                .build();
+    }
+
+    private List<BotApiMethod<?>> reply(Long chatId, String text) {
+        return List.of(message(chatId, text));
+    }
+
+    private SendMessage message(Long chatId, String text) {
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
                 .build();
     }
 
-    private SendMessage reply(Long chatId, String text, ReplyKeyboardMarkup keyboard) {
+    private List<BotApiMethod<?>> reply(Long chatId, String text, ReplyKeyboard keyboard) {
+        return List.of(message(chatId, text, keyboard));
+    }
+
+    private SendMessage message(Long chatId, String text, ReplyKeyboard keyboard) {
         return SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
@@ -138,16 +241,17 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                 .build();
     }
 
-    private ReplyKeyboardMarkup confirmKeyboard() {
-        KeyboardButton button1 = KeyboardButton.builder()
-                .text(CONFIRM_YES)
+    private InlineKeyboardMarkup confirmKeyboard() {
+        InlineKeyboardButton button1 = InlineKeyboardButton.builder()
+                .text("Ha")
+                .callbackData(CONFIRM_YES)
                 .build();
-        KeyboardButton button2 = KeyboardButton.builder()
-                .text(CONFIRM_NO)
+        InlineKeyboardButton button2 = InlineKeyboardButton.builder()
+                .text("Yo'q")
+                .callbackData(CONFIRM_NO)
                 .build();
-        return ReplyKeyboardMarkup.builder()
-                .keyboardRow(new KeyboardRow(List.of(button1, button2)))
-                .resizeKeyboard(true)
+        return InlineKeyboardMarkup.builder()
+                .keyboardRow(List.of(button1, button2))
                 .build();
     }
 

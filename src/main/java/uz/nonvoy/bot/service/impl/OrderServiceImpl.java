@@ -15,6 +15,8 @@ import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,31 +27,38 @@ public class OrderServiceImpl implements OrderService {
     private final ProductService productService;
     private final UserService userService;
 
+    @Transactional
     @Override
-    public void changeStatus(Order order, OrderStatus newStatus) {
-        switch (order.getStatus()) {
-            case NEW:
-                if (newStatus == OrderStatus.ACCEPTED || newStatus == OrderStatus.CANCELLED) {
-                    order.setStatus(newStatus);
-                    break;
-                } else {
-                    throw new IllegalStateException(order.getStatus() + "->" + newStatus + " o'tish ruxsat etilmagan");
-                }
-            case ACCEPTED:
-                if (newStatus == OrderStatus.READY || newStatus == OrderStatus.CANCELLED) {
-                    order.setStatus(newStatus);
-                    break;
-                } else {
-                    throw new IllegalStateException(order.getStatus() + "->" + newStatus + " o'tish ruxsat etilmagan");
-                }
-            default:
-                throw new IllegalStateException(order.getStatus() + "->" + newStatus + " o'tish ruxsat etilmagan");
+    public Order changeStatus(Long orderId, OrderStatus newStatus) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalStateException("Buyurtma #" + orderId + " topilmadi"));
+
+        boolean allowed = switch (order.getStatus()) {
+            case NEW -> newStatus == OrderStatus.ACCEPTED || newStatus == OrderStatus.CANCELLED;
+            case ACCEPTED -> newStatus == OrderStatus.READY || newStatus == OrderStatus.CANCELLED;
+            case READY, CANCELLED -> false;
+        };
+        if (!allowed) {
+            throw new IllegalStateException(order.getStatus() + "->" + newStatus + " o'tish ruxsat etilmagan");
         }
+
+        order.setStatus(newStatus);
+        return orderRepository.save(order);
     }
 
     @Override
     public BigDecimal calculateTotal(Product product, int quantity) {
         return product.getPrice().multiply(BigDecimal.valueOf(quantity));
+    }
+
+    @Override
+    public Optional<Order> findById(Long orderId) {
+        return orderRepository.findById(orderId);
+    }
+
+    @Override
+    public List<OrderItem> findItems(Order order) {
+        return orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
     }
 
     @Transactional
@@ -59,7 +68,7 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new IllegalStateException("Faol mahsulot yo'q"));
         int quantity = user.getDraftQuantity();
         Order order = Order.builder()
-                .totalAmount(calculateTotal(product, quantity))
+                .totalAmountMoney(calculateTotal(product, quantity))
                 .user(user)
                 .build();
         Order savedOrder = orderRepository.save(order);
