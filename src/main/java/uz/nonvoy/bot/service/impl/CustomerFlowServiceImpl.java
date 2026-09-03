@@ -1,6 +1,7 @@
 package uz.nonvoy.bot.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
@@ -22,6 +23,7 @@ import uz.nonvoy.bot.service.CustomerFlowService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
+import uz.nonvoy.bot.util.OrderCardFormatter;
 import uz.nonvoy.bot.util.PriceFormatter;
 
 import java.math.BigDecimal;
@@ -35,6 +37,9 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private final UserService userService;
     private final ProductService productService;
     private final OrderService orderService;
+
+    @Value("${bot.admin-group-id}")
+    private Long adminGroupId;
 
     private static final String ORDER_BUTTON = "Buyurtma berish";
     private static final String CONFIRM_YES = "CONFIRM:YES";
@@ -87,13 +92,27 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         list.add(answerCallbackQuery);
         if (CONFIRM_YES.equals(data)) {
             Integer quantity = user.getDraftQuantity();
-            Order order = orderService.createOrder(user);
+            Order order;
+            try {
+                order = orderService.createOrder(user);
+            } catch (IllegalStateException e) {
+                // Miqdor kiritilgandan keyin novvoy mahsulotni "tugadi" qilib qo'ygan bo'lishi mumkin
+                userService.resetToIdle(user);
+                list.add(EditMessageText.builder()
+                        .chatId(chatId)
+                        .messageId(messageId)
+                        .text("Kechirasiz, mahsulot tugadi. Buyurtma rasmiylashtirilmadi")
+                        .build());
+                list.add(message(chatId, "Keyinroq urinib ko'ring", orderKeyboard()));
+                return list;
+            }
             EditMessageText edit = EditMessageText.builder()
                     .chatId(chatId)
                     .messageId(messageId)
                     .text("Buyurtma #" + order.getId() + " qabul qilindi ✅ Jami: " + quantity + " ta non — " + PriceFormatter.formatPrice(order.getTotalAmountMoney()) + " so'm")
                     .build();
             list.add(edit);
+            list.add(adminCard(order));
         } else if (CONFIRM_NO.equals(data)) {
             userService.resetToIdle(user);
             EditMessageText edit = EditMessageText.builder()
@@ -170,6 +189,15 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         } else {
             return reply(chatId, "/start buyrug'ini yuboring");
         }
+    }
+
+    /** Yangi buyurtma kartasi — novvoy guruhda ko'radi va shu yerda statusni boshqaradi. */
+    private SendMessage adminCard(Order order) {
+        return SendMessage.builder()
+                .chatId(adminGroupId)
+                .text(OrderCardFormatter.card(order, orderService.findItems(order)))
+                .replyMarkup(OrderCardFormatter.keyboard(order))
+                .build();
     }
 
     private List<BotApiMethod<?>> reply(Long chatId, String text) {
