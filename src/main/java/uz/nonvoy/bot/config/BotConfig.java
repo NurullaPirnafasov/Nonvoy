@@ -32,7 +32,11 @@ public class BotConfig {
     @PostConstruct
     public void init() {
         registrar = new Thread(this::registerUntilSuccess, "telegram-registrar");
-        registrar.setDaemon(true);
+        // Daemon EMAS: loyiha web emas, JVM'ni tirik ushlab turadigan boshqa oqim yo'q.
+        // Daemon bo'lsa, ro'yxatdan o'tish tugamasidan JVM chiqib ketadi va dastur
+        // "ishga tushdi va darhol to'xtadi" bo'lib qoladi. Muvaffaqiyatdan keyin esa
+        // bot sessiyasining oqimlari ushlab turadi; kontekst yopilganda @PreDestroy uzadi
+        registrar.setDaemon(false);
         registrar.start();
     }
 
