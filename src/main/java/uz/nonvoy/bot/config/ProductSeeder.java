@@ -20,7 +20,6 @@ public class ProductSeeder implements CommandLineRunner {
             Product product = Product.builder()
                     .name("Non")
                     .price(BigDecimal.valueOf(5000))
-                    .available(true)
                     .build();
             productRepository.save(product);
         }

@@ -23,4 +23,6 @@ public class Order extends Auditable {
     @Builder.Default
     private OrderStatus status=OrderStatus.NEW;
     private BigDecimal totalAmountMoney;
+    /** Mijoz yuborgan chek rasmining Telegram file_id'si. Kassa kartasi shu rasm bilan chiqadi. */
+    private String receiptFileId;
 }

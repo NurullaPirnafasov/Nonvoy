@@ -11,7 +11,7 @@ import java.util.Optional;
  */
 @Getter
 public enum OrderAction {
-    ACCEPT("✅ Qabul", OrderStatus.ACCEPTED),
+    ACCEPT("✅ To'lov tasdiqlandi", OrderStatus.ACCEPTED),
     READY("🍞 Tayyor", OrderStatus.READY),
     CANCEL("❌ Bekor", OrderStatus.CANCELLED);
 

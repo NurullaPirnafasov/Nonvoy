@@ -2,33 +2,35 @@ package uz.nonvoy.bot.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.PartialBotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageCaption;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import uz.nonvoy.bot.entity.Order;
-import uz.nonvoy.bot.entity.Product;
+import uz.nonvoy.bot.entity.enums.OrderStatus;
 import uz.nonvoy.bot.service.AdminFlowService;
 import uz.nonvoy.bot.service.OrderService;
-import uz.nonvoy.bot.service.ProductService;
+import uz.nonvoy.bot.service.ProductAdminService;
+import uz.nonvoy.bot.service.StatusChange;
 import uz.nonvoy.bot.telegram.OrderAction;
+import uz.nonvoy.bot.util.CardAudience;
 import uz.nonvoy.bot.util.OrderCardFormatter;
-import uz.nonvoy.bot.util.PriceFormatter;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Novvoy (admin) guruhidagi update'lar. Alohida panel yo'q: buyurtma kartasi
- * guruhga tushadi, status inline tugmalar orqali o'zgaradi.
+ * Ikki guruh: kassa to'lovni tekshiradi, ishchilar nonni yopadi. Alohida panel yo'q —
+ * buyurtma kartasi guruhga tushadi, status inline tugmalar orqali o'zgaradi.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,45 +38,61 @@ import java.util.Optional;
 public class AdminFlowServiceImpl implements AdminFlowService {
 
     private final OrderService orderService;
-    private final ProductService productService;
+    private final ProductAdminService productAdminService;
+
+    @Value("${bot.admin-group-id}")
+    private Long paymentGroupId;
+
+    @Value("${bot.worker-group-id}")
+    private Long workerGroupId;
 
     private static final String PRODUCTS_COMMAND = "/mahsulotlar";
-    private static final String PRODUCT_TOGGLE_PREFIX = "PRODUCT:";
-    private static final String PRODUCTS_TITLE = "🍞 Mahsulotlar\n\nHolatni o'zgartirish uchun tugmani bosing:";
 
     @Override
-    public List<BotApiMethod<?>> handleMessage(Update update) {
+    public List<PartialBotApiMethod<?>> handleMessage(Update update) {
         Message message = update.getMessage();
-        if (message == null || !message.hasText()) {
-            // Guruhda har xabarga javob berish shovqin — faqat buyruqlarga javob beramiz
+        // Mahsulot boshqaruvi — pul masalasi, shuning uchun faqat kassada (12-qaror)
+        if (message == null || !paymentGroupId.equals(message.getChatId())) {
             return List.of();
         }
-        if (isProductsCommand(message.getText())) {
-            return List.of(SendMessage.builder()
-                    .chatId(message.getChatId())
-                    .text(PRODUCTS_TITLE)
-                    .replyMarkup(productsKeyboard())
-                    .build());
+        // Privacy mode tufayli bot guruhda faqat buyruqlarni va o'z xabariga qilingan
+        // reply'larni ko'radi — shuning uchun boshqa shovqin bu yergacha yetib kelmaydi (18-qaror)
+        Optional<List<PartialBotApiMethod<?>>> reply = productAdminService.handleReply(message);
+        if (reply.isPresent()) {
+            return reply.get();
+        }
+        if (message.hasText() && isProductsCommand(message.getText())) {
+            return productAdminService.openList(message.getChatId());
         }
         return List.of();
     }
 
     @Override
-    public List<BotApiMethod<?>> handleCallback(Update update) {
+    public List<PartialBotApiMethod<?>> handleCallback(Update update) {
         CallbackQuery callbackQuery = update.getCallbackQuery();
         String data = callbackQuery.getData();
+        Long chatId = callbackQuery.getMessage().getChatId();
 
-        if (data != null && data.startsWith(PRODUCT_TOGGLE_PREFIX)) {
-            return handleProductToggle(callbackQuery, data);
+        if (productAdminService.handlesCallback(data)) {
+            if (!paymentGroupId.equals(chatId)) {
+                return List.of(answer(callbackQuery, "Bu tugma bu guruhda ishlamaydi"));
+            }
+            return productAdminService.handleCallback(callbackQuery);
         }
-        return handleOrderAction(callbackQuery, data);
+        return handleOrderAction(callbackQuery, data, chatId);
     }
 
-    private List<BotApiMethod<?>> handleOrderAction(CallbackQuery callbackQuery, String data) {
+    private List<PartialBotApiMethod<?>> handleOrderAction(CallbackQuery callbackQuery, String data, Long chatId) {
         Optional<OrderAction> action = OrderAction.parse(data);
         Optional<Long> orderId = OrderAction.parseOrderId(data);
         if (action.isEmpty() || orderId.isEmpty()) {
             return List.of(answer(callbackQuery, "Noma'lum tugma"));
+        }
+
+        CardAudience audience = audienceOf(chatId);
+        // Tugma u yerda chizilmasa ham himoya arzon (17-qaror)
+        if (audience == null || !isAllowed(action.get(), audience)) {
+            return List.of(answer(callbackQuery, "Bu tugma bu guruhda ishlamaydi"));
         }
 
         Optional<Order> existing = orderService.findById(orderId.get());
@@ -82,92 +100,114 @@ public class AdminFlowServiceImpl implements AdminFlowService {
             return List.of(answer(callbackQuery, "Buyurtma #" + orderId.get() + " topilmadi"));
         }
 
-        Order order;
+        StatusChange change;
         try {
-            order = orderService.changeStatus(orderId.get(), action.get().getStatus());
+            change = orderService.changeStatus(orderId.get(), action.get().getStatus());
         } catch (IllegalStateException e) {
-            // Ikki marta bosish yoki bekor qilingan buyurtmani "Tayyor" qilish shu yerga tushadi.
+            // Ikki marta bosish yoki eskirgan karta (15-qaror) shu yerga tushadi.
             // Kartani qayta chizmaymiz — matn o'zgarmagani uchun Telegram baribir rad etardi;
             // o'rniga kartadagi tugmalarni haqiqiy holatga moslaymiz
             log.info("Ruxsatsiz status o'tishi: order={}, action={}", orderId.get(), action.get(), e);
-            List<BotApiMethod<?>> result = new ArrayList<>();
+            List<PartialBotApiMethod<?>> result = new ArrayList<>();
             result.add(answer(callbackQuery, alreadyHandledText(existing.get())));
             result.add(EditMessageReplyMarkup.builder()
-                    .chatId(callbackQuery.getMessage().getChatId())
+                    .chatId(chatId)
                     .messageId(callbackQuery.getMessage().getMessageId())
-                    .replyMarkup(OrderCardFormatter.keyboard(existing.get()))
+                    .replyMarkup(OrderCardFormatter.keyboard(existing.get(), audience))
                     .build());
             return result;
         }
 
-        List<BotApiMethod<?>> result = new ArrayList<>();
+        Order order = change.order();
+        List<PartialBotApiMethod<?>> result = new ArrayList<>();
         result.add(answer(callbackQuery, null));
-        result.add(EditMessageText.builder()
-                .chatId(callbackQuery.getMessage().getChatId())
-                .messageId(callbackQuery.getMessage().getMessageId())
-                .text(OrderCardFormatter.card(order, orderService.findItems(order)))
-                .replyMarkup(OrderCardFormatter.keyboard(order))
-                .build());
+        result.add(redrawOwnCard(order, audience, chatId, callbackQuery.getMessage().getMessageId()));
+        result.addAll(notifyWorkers(change));
         result.add(SendMessage.builder()
                 .chatId(order.getUser().getTelegramId())
-                .text(customerNotification(order))
+                .text(customerNotification(change))
                 .build());
         return result;
     }
 
-    private List<BotApiMethod<?>> handleProductToggle(CallbackQuery callbackQuery, String data) {
-        long productId;
-        try {
-            productId = Long.parseLong(data.substring(PRODUCT_TOGGLE_PREFIX.length()));
-        } catch (NumberFormatException e) {
-            return List.of(answer(callbackQuery, "Noma'lum tugma"));
+    /**
+     * Chek rasmi faqat kassa xabarida, shuning uchun u yerda caption tahrirlanadi,
+     * ishchilarda esa oddiy matn (13-qaror).
+     */
+    private PartialBotApiMethod<?> redrawOwnCard(Order order, CardAudience audience, Long chatId, Integer messageId) {
+        String text = OrderCardFormatter.card(order, orderService.findItems(order), audience);
+        InlineKeyboardMarkup keyboard = OrderCardFormatter.keyboard(order, audience);
+        if (audience == CardAudience.PAYMENT) {
+            return EditMessageCaption.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .caption(text)
+                    .replyMarkup(keyboard)
+                    .build();
         }
-
-        Optional<Product> toggled = productService.toggleAvailability(productId);
-        if (toggled.isEmpty()) {
-            return List.of(answer(callbackQuery, "Mahsulot topilmadi"));
-        }
-
-        Product product = toggled.get();
-        List<BotApiMethod<?>> result = new ArrayList<>();
-        result.add(answer(callbackQuery, product.getName() + (product.isAvailable() ? " — bor" : " — tugadi")));
-        // Sarlavha o'zgarmaydi, faqat tugmalar — shuning uchun EditMessageText emas
-        // (bir xil matn bilan tahrirlash Telegram'da xato beradi)
-        result.add(EditMessageReplyMarkup.builder()
-                .chatId(callbackQuery.getMessage().getChatId())
-                .messageId(callbackQuery.getMessage().getMessageId())
-                .replyMarkup(productsKeyboard())
-                .build());
-        return result;
+        return EditMessageText.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .text(text)
+                .replyMarkup(keyboard)
+                .build();
     }
 
-    private InlineKeyboardMarkup productsKeyboard() {
-        InlineKeyboardMarkup.InlineKeyboardMarkupBuilder builder = InlineKeyboardMarkup.builder();
-        for (Product product : productService.findAll()) {
-            String label = product.getName()
-                    + " — " + PriceFormatter.formatPrice(product.getPrice()) + " so'm"
-                    + (product.isAvailable() ? " ✅ bor" : " ❌ tugadi");
-            builder.keyboardRow(List.of(InlineKeyboardButton.builder()
-                    .text(label)
-                    .callbackData(PRODUCT_TOGGLE_PREFIX + product.getId())
-                    .build()));
+    /** Ishchilar guruhi faqat kassa qaror qabul qilganda xabar oladi. */
+    private List<PartialBotApiMethod<?>> notifyWorkers(StatusChange change) {
+        Order order = change.order();
+        if (change.from() == OrderStatus.NEW && order.getStatus() == OrderStatus.ACCEPTED) {
+            return List.of(SendMessage.builder()
+                    .chatId(workerGroupId)
+                    .text(OrderCardFormatter.card(order, orderService.findItems(order), CardAudience.KITCHEN))
+                    .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.KITCHEN))
+                    .build());
         }
-        return builder.build();
+        // Non allaqachon tandirda bo'lishi mumkin — ishchilar buni bilishi shart (12-qaror)
+        if (change.from() == OrderStatus.ACCEPTED && order.getStatus() == OrderStatus.CANCELLED) {
+            return List.of(SendMessage.builder()
+                    .chatId(workerGroupId)
+                    .text("❌ Buyurtma #" + order.getId() + " bekor qilindi — yopmang")
+                    .build());
+        }
+        return List.of();
     }
 
-    private String customerNotification(Order order) {
+    private CardAudience audienceOf(Long chatId) {
+        if (paymentGroupId.equals(chatId)) {
+            return CardAudience.PAYMENT;
+        }
+        if (workerGroupId.equals(chatId)) {
+            return CardAudience.KITCHEN;
+        }
+        return null;
+    }
+
+    private boolean isAllowed(OrderAction action, CardAudience audience) {
+        return switch (audience) {
+            case PAYMENT -> action == OrderAction.ACCEPT || action == OrderAction.CANCEL;
+            case KITCHEN -> action == OrderAction.READY;
+        };
+    }
+
+    /** Matn farqi eski statusdan chiqadi — alohida REJECTED status kerak emas (11-qaror). */
+    private String customerNotification(StatusChange change) {
+        Order order = change.order();
+        String number = "#" + order.getId();
         return switch (order.getStatus()) {
-            case ACCEPTED -> "Buyurtmangiz #" + order.getId() + " qabul qilindi ✅";
-            case READY -> "Noningiz tayyor, olib ketishingiz mumkin 🍞 (buyurtma #" + order.getId() + ")";
-            case CANCELLED -> "Afsuski buyurtmangiz #" + order.getId() + " bekor qilindi ❌";
-            case NEW -> "Buyurtmangiz #" + order.getId() + " navbatda";
+            case ACCEPTED -> "To'lovingiz tasdiqlandi ✅ Buyurtma " + number + " tayyorlanmoqda";
+            case READY -> "Noningiz tayyor, olib ketishingiz mumkin 🍞 (" + number + ")";
+            case CANCELLED -> change.from() == OrderStatus.NEW
+                    ? "To'lov topilmadi ❌ Iltimos, qaytadan buyurtma bering (" + number + ")"
+                    : "Buyurtmangiz " + number + " bekor qilindi ❌";
+            case NEW -> "Buyurtmangiz " + number + " navbatda";
         };
     }
 
     private String alreadyHandledText(Order order) {
         return switch (order.getStatus()) {
-            case NEW -> "Buyurtma hali navbatda";
-            case ACCEPTED -> "Buyurtma allaqachon qabul qilingan";
+            case NEW -> "Buyurtma hali to'lov tekshiruvida";
+            case ACCEPTED -> "To'lov allaqachon tasdiqlangan";
             case READY -> "Buyurtma allaqachon tayyor";
             case CANCELLED -> "Buyurtma bekor qilingan";
         };

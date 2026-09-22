@@ -6,16 +6,12 @@ Mahallada faoliyat yuritadigan bitta novvoyxona uchun Telegram bot. Mijozlar bot
 
 **Asosiy printsip:** flow maksimal sodda, ichki struktura toza (qatlamlar, enum'lar, narx muzlatish) — shunda keyin feature qo'shish og'riqsiz bo'ladi.
 
-## Ishlash tartibi (MUHIM — Claude uchun qoidalar)
+## Ishlash tartibi (MUHIM — Claude uchun qoida)
 
-Bu loyihada Nurulla kod yozadi, Claude **senior reviewer / team lead** rolida:
-
-1. Claude vazifani aniq beradi: nima qilish kerak, qanday natija kutiladi, qaysi tuzoqlarga e'tibor berish kerak.
-2. Nurulla kodni **o'zi yozadi**, keyin review'ga tashlaydi.
-3. Claude review qiladi: xatolarni ko'rsatadi, lekin **tayyor kod yozib bermaydi** — yo'naltiruvchi savollar va hint'lar beradi.
-4. Nurulla tiqilib qolsa (30+ daqiqa), Claude pseudocode yoki kichik misol berishi mumkin, lekin to'liq yechimni emas.
-5. Istisno: boilerplate/config fayllar (pom.xml, application.yml, docker-compose) — bularni Claude yozib berishi mumkin.
-6. Dizayn qarorlari asoslanadi: "menimcha" yetarli emas, har bir tanlov uchun sabab aytiladi.
+1. Avval **reja to'liq tuzib bo'linadi** — qadamlar, qarorlar, tuzoqlar muhokama qilinadi. Reja tugamaguncha kod yozilmaydi.
+2. Reja tayyor bo'lgach, Nurulla **qaysi qismini yozishni aytadi**.
+3. Faqat shundan keyin Claude kod yozadi — aytilgan qismni, undan ortig'ini emas.
+4. Dizayn qarorlari asoslanadi: "menimcha" yetarli emas, har bir tanlov uchun sabab aytiladi.
 
 ## Texnik stack
 
@@ -28,12 +24,13 @@ Bu loyihada Nurulla kod yozadi, Claude **senior reviewer / team lead** rolida:
 
 Oddiy layered: `Bot handler → Service → Repository`. Mapper/Event/Integration layer'lar KERAK EMAS.
 
-### Entity'lar (4 ta, hammasi Auditable'dan meros: createdAt, updatedAt)
+### Entity'lar (5 ta, hammasi Auditable'dan meros: createdAt, updatedAt)
 
-- **User** — telegramId, phone (contact orqali), name, role (CUSTOMER/ADMIN), state (bot flow qadami)
-- **Product** — nomi, narxi, available (boolean "bugun bor/yo'q"). Hozircha bitta qator ("Non"), lekin yangi turlar (patir, shirmoy) qo'shilishi kutiladi
-- **Order** — user, status, jami summa. Buyurtma raqami sifatida `Auditable.id` ishlatiladi (alohida `orderNumber` maydoni YO'Q — id unique, hisoblagich kerak emas; sequence'da uzilish/sakrash bo'lishi mumkin, lekin novvoyxona uchun raqam shunchaki identifikator, ketma-ketlik ma'no bermaydi)
-- **OrderItem** — order, product, quantity, **priceAtOrder** (buyurtma paytidagi narx muzlatiladi — mahsulot narxi keyin o'zgarsa buyurtma tarixi buzilmasligi uchun)
+- **User** — telegramId, phone (contact orqali), name, role (CUSTOMER/ADMIN), state (bot flow qadami), `draftProductId` (miqdor so'ralayotgan mahsulot), `draftReceiptFileId` (chek rasmining Telegram file_id'si — buyurtma hali yaratilmagani uchun shu yerda kutadi)
+- **Product** — nomi, narxi. Yangi turlar (patir, shirmoy) qo'shilishi kutiladi. "Bugun bor/yo'q" holati YO'Q (22-qarorga qarang)
+- **CartItem** — user, product, quantity. Tugallanmagan buyurtma qoralamasi; `(user_id, product_id)` unique. Narx maydoni YO'Q (4-qarorga qarang)
+- **Order** — user, status, jami summa, chek rasmining file_id'si. Buyurtma raqami sifatida `Auditable.id` ishlatiladi (alohida `orderNumber` maydoni YO'Q — id unique, hisoblagich kerak emas; sequence'da uzilish bo'lishi mumkin, lekin novvoyxona uchun raqam shunchaki identifikator)
+- **OrderItem** — order, product, quantity, **priceAtOrder** (buyurtma paytidagi narx muzlatiladi — mahsulot narxi keyin o'zgarsa buyurtma tarixi buzilmasligi uchun). 6-bosqichda `productNameAtOrder` ham qo'shiladi (23-qaror)
 
 ### Status flow (sodda)
 
@@ -41,6 +38,13 @@ Oddiy layered: `Bot handler → Service → Repository`. Mapper/Event/Integratio
 NEW → ACCEPTED → READY
   ↘ CANCELLED (NEW yoki ACCEPTED holatidan)
 ```
+
+Ikki guruhli tartibda status'lar shu ma'noni oladi (yangi status QO'SHILMAYDI):
+
+- **NEW** — chek yuborildi, kassa guruhida to'lov tekshirilmoqda
+- **ACCEPTED** — to'lov tasdiqlandi, karta ishchilar guruhiga tushdi
+- **READY** — non tayyor, mijozga xabar ketdi
+- **CANCELLED** — kassa bekor qildi
 
 COMPLETED yo'q — olib ketishni kuzatish novvoyga ortiqcha yumush. Status o'tishlari service'da validatsiya qilinadi, noto'g'ri o'tish exception beradi.
 
@@ -51,27 +55,45 @@ Foydalanuvchi flow'da qaysi qadamda ekani DB'da saqlanadi (`User.state` enum). R
 ## Mijoz flow
 
 1. `/start` → agar telefon yo'q bo'lsa, contact button orqali so'raladi (bir marta)
-2. "Nechta non kerak?" → foydalanuvchi raqamni yozib kiritadi (validatsiya: kamida 1 ta butun son, yuqori chegara yo'q — ko'p buyurtma normal)
-3. Tasdiqlash → "Buyurtma #47 qabul qilindi ✅ Jami: 10 ta non — 50 000 so'm"
-4. Status o'zgarganda avtomatik xabar (ayniqsa READY: "Noningiz tayyor, olib ketishingiz mumkin 🍞")
-5. Tungi buyurtmalar ham qabul qilinadi — NEW bo'lib navbatda turadi, novvoy ertalab ko'radi. Ish vaqti validatsiyasi YO'Q.
+2. Mahsulot tanlash → miqdorni raqam bilan yozish (validatsiya: kamida 1 ta butun son, yuqori chegara yo'q)
+3. Savat ko'rinadi → yana mahsulot qo'shish yoki tasdiqlash
+4. To'lov: summani kartaga o'tkazib, chek rasmini yuborish (onlayn to'lov integratsiyasi YO'Q, tekshiruv qo'lda)
+5. Yakuniy tasdiq → buyurtma yaratiladi, raqami beriladi, guruhga chek bilan tushadi
+6. Status o'zgarganda avtomatik xabar (ayniqsa READY: "Noningiz tayyor, olib ketishingiz mumkin 🍞")
+7. Tungi buyurtmalar ham qabul qilinadi — NEW bo'lib navbatda turadi, novvoy ertalab ko'radi. Ish vaqti validatsiyasi YO'Q.
 
-Eslatma: hozir mahsulot bitta bo'lgani uchun tanlash qadami yo'q. Ikkinchi mahsulot qo'shilganda flow boshiga bitta tanlash qadami kiradi — arxitektura o'zgarmaydi.
+To'liq qadamlar va qarorlar uchun "5-bosqich" bo'limiga qarang.
 
 ## Novvoy (admin) flow
 
-Alohida panel YO'Q. Buyurtmalar **Telegram guruhga** (kanal emas — tugma bosishni boshqarish guruhda qulay) karta ko'rinishida tushadi:
+Alohida panel YO'Q. Buyurtmalar **ikkita Telegram guruhga** (kanal emas — tugma bosishni boshqarish guruhda qulay) karta ko'rinishida tushadi. Har guruhda bitta oldinga siljituvchi tugma bor:
+
+**1. Kassa (admin) guruhi** — `bot.admin-group-id`. To'lovni tekshiradi. Karta `SendPhoto` (chek rasmi) + caption:
 
 ```
-🆕 Buyurtma #47
+🆕 Buyurtma #47 — to'lov tekshirilmoqda
 👤 Alisher (+998 9x xxx xx xx)
 🍞 Non × 10 — 50 000 so'm
-[✅ Qabul] [🍞 Tayyor] [❌ Bekor]
+🍞 Patir × 5 — 30 000 so'm
+💰 Jami: 80 000 so'm
+[✅ To'lov tasdiqlandi] [❌ Bekor]        ← NEW
+[❌ Bekor]                                ← ACCEPTED
+(tugma yo'q)                              ← READY, CANCELLED
 ```
 
-Tugma bosilganda status o'zgaradi va mijozga xabar ketadi.
+**2. Ishchilar guruhi** — `bot.worker-group-id`. Nima yopish kerakligini ko'radi. Karta oddiy `SendMessage` (matn), chek rasmi YO'Q, telefon YO'Q:
 
-Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
+```
+✅ Buyurtma #47 — tayyorlash kerak
+🍞 Non × 10
+🍞 Patir × 5
+[🍞 Tayyor]                               ← ACCEPTED
+(tugma yo'q)                              ← READY, CANCELLED
+```
+
+Tugma bosilganda status o'zgaradi va mijozga xabar ketadi. Qabul qilish va bekor qilish — faqat kassa; ishchilar faqat "Tayyor" bosadi.
+
+Admin buyruq: `/mahsulotlar` — mahsulotlarni inline tugmalar orqali boshqarish (kassa guruhida). Batafsil: "6-bosqich".
 
 ## Reja (kuniga 3-4 soat, jami ~2-2.5 hafta)
 
@@ -96,11 +118,171 @@ Admin buyruq: `/mahsulotlar` — ro'yxat + "bor/tugadi" toggle tugmasi.
 - [x] Exception handling, edge case'lar (ikki marta bosish, noto'g'ri raqam, bekor qilingan buyurtmani "Tayyor" qilish)
 - [x] **Matn/kontakt bo'lmagan update'ga javob berish.** Hozir `NonvoyTelegramBot.isTextOrContact` filtridan o'tmagan hamma narsa (rasm, stiker, ovoz) jimgina tashlanadi — foydalanuvchi stiker yuborsa bot javob bermaydi va nima kutilayotganini bilmaydi. Har state uchun "hozir nima kerakligi"ni eslatuvchi javob bo'lsin. Eslatma: chek rasmini qabul qilish (rejalashtirilgan feature) aynan shu filtrga tiqiladi
 - [x] **README.md** — nima, nega, stack, ishga tushirish. Repo public va portfolio'ning bir qismi, README'siz repo tashrif buyuruvchi uchun bo'sh
-- [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas)
+- [ ] **Flyway — deploy'dan OLDIN.** `ddl-auto: update` sxemani yarim yangilaydi: enum'ga yangi qiymat qo'shilsa Hibernate yaratgan `CHECK (state IN (...))` constraint'i eskiligicha qoladi va bot runtime'da `DataIntegrityViolationException` beradi (5-bosqichda `users_state_check` aynan shunday portladi); o'chirilgan maydon ustuni ham jadvalda qolib ketadi (`draft_quantity`, `available`). Lokal bazada qo'lda `ALTER` bilan tuzatish mumkin, prod'da esa yo'q. Reja: `ddl-auto: validate` + `V1__init.sql` (hozirgi sxema) va har o'zgarish uchun yangi migratsiya
+- [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas). Eslatma: O'zbekistondan `api.telegram.org` to'siladi — lokal ishlab chiqishda VPN yoki proxy kerak, VPS chet elda bo'lsa muammo yo'q
 - [ ] Novvoyga ko'rsatish, real test, tuzatishlar
+
+### 5-bosqich: Savatcha va chek orqali to'lov (bajarildi)
+
+Yangi flow — mijoz tomoni (buyurtma yaratilgungacha):
+
+```
+IDLE ──"Buyurtma berish"──► WAITING_PRODUCT
+WAITING_PRODUCT ──mahsulot tanlandi──► WAITING_QUANTITY
+WAITING_QUANTITY ──raqam──► savatga qo'shiladi ──► CART_REVIEW
+
+CART_REVIEW   "Savat: Non×10 — 50 000 / Patir×5 — 30 000 / Jami: 80 000 so'm"
+              [➕ Yana] [✅ To'g'ri] [❌ Bekor]
+   ├ Yana    → WAITING_PRODUCT
+   ├ To'g'ri → WAITING_RECEIPT ("<summa>ni <karta>ga o'tkazib, chek rasmini yuboring")
+   └ Bekor   → savat tozalanadi → IDLE
+
+WAITING_RECEIPT ──rasm──► file_id saqlanadi ──► FINAL_CONFIRM
+
+FINAL_CONFIRM  chek rasmi + savat + jami summa
+               [✅ Tasdiqlash] [❌ Bekor]
+   ├ Tasdiqlash → Order + OrderItem yaratiladi → kassaga rasm+karta → IDLE
+   ├ yangi rasm → chek almashtiriladi, ekran qayta chiziladi
+   └ Bekor      → savat va chek tozalanadi → IDLE
+```
+
+Buyurtma yaratilgandan keyin — ikki guruh tomoni:
+
+```
+Order NEW ──► kassa guruhi: SendPhoto(chek) + caption + [✅ To'lov tasdiqlandi] [❌ Bekor]
+              mijozga: "Buyurtmangiz #47 qabul qilindi. To'lov tekshirilmoqda ⏳"
+
+kassa ✅ ──► NEW→ACCEPTED
+              kassa kartasi: EditMessageCaption, tugma [❌ Bekor] qoladi
+              ishchilar guruhi: SendMessage(karta) + [🍞 Tayyor]
+              mijozga: "To'lovingiz tasdiqlandi ✅ Buyurtma tayyorlanmoqda"
+
+ishchilar 🍞 ──► ACCEPTED→READY
+              ishchilar kartasi: EditMessageText, tugmasiz
+              mijozga: "Noningiz tayyor, olib ketishingiz mumkin 🍞 (#47)"
+
+kassa ❌ (NEW da) ──► NEW→CANCELLED
+              kassa kartasi: EditMessageCaption, tugmasiz
+              mijozga: "To'lov topilmadi ❌ Iltimos, qaytadan buyurtma bering"
+
+kassa ❌ (ACCEPTED da) ──► ACCEPTED→CANCELLED
+              kassa kartasi: EditMessageCaption, tugmasiz
+              ishchilar guruhiga YANGI xabar: "❌ Buyurtma #47 bekor qilindi — yopmang"
+              mijozga: "Buyurtmangiz #47 bekor qilindi ❌"
+```
+
+Qarorlar va sabablari:
+
+1. **Savatcha alohida `CartItem` entity'da**, `Order`da emas. Sabab: buyurtma faqat oxirgi tasdiqdan keyin yaratiladi, shunda bazada chala `Order` hech qachon qolmaydi va yangi status kerak bo'lmaydi.
+2. **Chek yuborilmasa muammo yo'q** — buyurtma umuman yaratilmagan bo'ladi, faqat savat qoladi. Timeout yoki tozalovchi job kerak emas.
+3. **Bir xil mahsulot ikkinchi marta qo'shilsa miqdor qo'shiladi** (yangi qator emas). Baza darajasida `(user_id, product_id)` unique constraint bilan kafolatlanadi.
+4. **`CartItem`da narx maydoni yo'q** — savatda mahsulotning joriy narxi ko'rsatiladi, narx muzlatish esa `OrderItem.priceAtOrder`da. Natijada savat ochiq turganda narx o'zgarsa, mijoz ekranidagi son yangilanadi, bazaga nomuvofiqlik kirmaydi.
+5. **Savatni tahrirlash yo'q** (faqat "Yana" / "To'g'ri" / "Bekor"). Xato bo'lsa — bekor qilib boshidan. Sabab: MVP sodda qolsin; pozitsiyani o'chirish tugmasi keyin qo'shilishi mumkin.
+6. **Chek — faqat rasm** (`photo`). Document/PDF qabul qilinmaydi.
+7. **Albom (bir nechta rasm) rad etiladi**: `message.mediaGroupId != null` bo'lsa "faqat bitta rasm yuboring". Albom bir necha update bo'lib kelgani uchun oxirgi rad etilgan `mediaGroupId` xotirada eslab qolinadi — bot bir marta javob beradi. (Bazaga yozilmaydi: vaqtinchalik UI holati.)
+8. **`photo` massividan eng kattasi olinadi** — bu turli o'lchamdagi bitta rasm, albom bilan chalkashtirilmasin.
+9. **`FINAL_CONFIRM`da yangi rasm eskisini almashtiradi** — mijoz aynan shu qadamda chekini ko'radi va xato yuborganini payqaydi; rad etilsa butun buyurtmani qaytadan boshlashga majbur bo'lardi.
+10. **Ikki guruh uchun yangi status KERAK EMAS.** `NEW` = "to'lov tekshirilmoqda", `ACCEPTED` = "to'lov tasdiqlandi, tandirga". Har guruhda bitta oldinga tugma: kassada `✅` (NEW→ACCEPTED), ishchilarda `🍞` (ACCEPTED→READY). O'tish validatsiyasi va eski buyurtmalar o'zgarmaydi.
+11. **`REJECTED` alohida status yo'q** — chek rad etilishi ham `CANCELLED`. Mijozga boradigan matn farqi **eski statusdan** chiqariladi (`changeStatus` tranzaksiya ichida eski holatni biladi): `NEW→CANCELLED` "to'lov topilmadi", `ACCEPTED→CANCELLED` "bekor qilindi". Enum shishirilmaydi.
+12. **Bekor qilish faqat kassada.** Pul kassada olingan — pul bilan bog'liq har qanday qaror bitta joyda tursin. Ishchilarda faqat `🍞 Tayyor`. Kassa `ACCEPTED`ni bekor qilsa ishchilarga alohida "yopmang" xabari ketadi, aks holda non allaqachon tandirda bo'ladi.
+13. **Chek rasmi ishchilarga yuborilmaydi** — ularga nima yopish kerakligi kerak, pul emas. Yon foydasi: rasm faqat kassa xabarida, shuning uchun `EditMessageCaption` faqat o'sha yerda; ishchilar kartasi matn bo'lgani uchun hozirgi `EditMessageText` kodi tegilmaydi.
+14. **Caption 1024 limiti uchun maxsus himoya yo'q.** 3-qarorga ko'ra savatda bir mahsulot bir marta uchraydi, ya'ni qatorlar soni mahsulot turlari soni bilan chegaralangan (3–5 ta). Limitga yetish uchun ~20 xil non kerak. O'rniga `OrderCardFormatter` caption uzunligi test bilan qoplanadi.
+15. **`Order`da `messageId` saqlanmaydi.** Har karta faqat **o'z tugmasi** bosilganda qayta chiziladi. Oqibati: ishchilar `Tayyor` bosganda kassa kartasida `[❌ Bekor]` eskirgan holda qoladi (va teskarisi — kassa bekor qilganda ishchilarda `[🍞 Tayyor]`). Bu ataylab qabul qilingan: eskirgan tugma bosilsa `READY→CANCELLED` / `CANCELLED→READY` validatsiyadan o'tmaydi va hozirgi `IllegalStateException` shoxi javob berib klaviaturani o'zi tuzatadi. Alternativa — service `execute` qilib `messageId` o'qishi — service'lar `BotApiMethod` qaytaradigan arxitekturani buzadi, bitta ortiqcha tugma buni oqlamaydi.
+16. **Rad etilgan buyurtmaga qayta chek yuborib bo'lmaydi** — `CANCELLED` terminal, mijoz boshidan boshlaydi (savat allaqachon tozalangan). Rad etish "pul kelmadi" degani, ya'ni baribir qaytadan to'lash kerak; `NEW→NEW` qayta-chek sub-flow'i state mashinasiga butun bir shox qo'shardi.
+17. **Callback guruhga bog'lanadi**: `ACCEPT`/`CANCEL` faqat kassa guruhidan, `READY` faqat ishchilar guruhidan qabul qilinadi. Tugma u yerda chizilmasa ham himoya arzon.
+
+Savatni tozalash kerak bo'lgan joylar (hech biri esdan chiqmasin):
+`/start` · `CART_REVIEW` Bekor · `FINAL_CONFIRM` Bekor · buyurtma yaratilgandan keyin · `IDLE`dan yangi buyurtma boshlanganda (eski savat qolib ketmasin)
+
+Vazifalar:
+- [x] `CartItem` entity + repository, `UserState`ga yangi qadamlar, `User`ga `draftProductId` / `draftReceiptFileId` (`draftQuantity` o'rniga)
+- [x] `CartService` — qo'shish (miqdor birlashtirish bilan), ro'yxat, jami summa, tozalash
+- [x] Mahsulot tanlash qadami (`WAITING_PRODUCT`) va `ProductService.getActiveProduct()` o'rniga id bo'yicha qidirish
+- [x] `CART_REVIEW` ekrani va "Yana" halqasi
+- [x] Chek qadami (`WAITING_RECEIPT`) — rasm validatsiyasi, albom rad etish
+- [x] `FINAL_CONFIRM` — chek rasmi + savat, buyurtma yaratish (`OrderService` savatdan `OrderItem` yasaydi, `priceAtOrder` muzlatadi), kassaga yuborish
+- [x] `application.yml`: `bot.payment-card`, `bot.payment-card-holder` (dummy default bilan), `bot.worker-group-id`
+
+Ikki guruh vazifalari:
+- [x] `Order`ga `receiptFileId`
+- [x] `NonvoyTelegramBot` ikkala guruh id'sini `AdminFlowService`ga yo'naltiradi
+- [x] `OrderCardFormatter.keyboard(order, audience)` — `audience` = `PAYMENT` | `KITCHEN`; kassa/ishchilar uchun alohida matn (ishchilarda telefon va narx yo'q)
+- [x] Callback guruhga bog'lanadi (17-qaror)
+- [x] Buyurtma yaratilganda kassaga `SendPhoto` + caption + tugmalar, mijozga "to'lov tekshirilmoqda"
+- [x] Kassa `✅`: `EditMessageCaption` + ishchilarga karta + mijozga xabar
+- [x] Kassa `❌` (`ACCEPTED` da): qo'shimcha ishchilarga "yopmang" xabari
+- [x] Ishchilar `🍞`: `EditMessageText` + mijozga xabar
+- [x] `CANCELLED` matni eski statusdan (11-qaror)
+- [x] Testlar: ikki audience klaviaturasi, bekor qilish matnlari, caption uzunligi
+
+Ochiq savollar:
+- To'lov kartasi raqami va egasi novvoydan olinadi (hozircha dummy: `8600 1234 5678 9012`, `Ism Familiya`; prod'da `PAYMENT_CARD` / `PAYMENT_CARD_HOLDER` env)
+
+### 6-bosqich: Mahsulot boshqaruvi (bajarildi)
+
+Bosqichgacha `/mahsulotlar` faqat "bor/tugadi" toggle qilardi — mahsulot qo'shish, narx yoki nomni o'zgartirish faqat SQL orqali edi, ya'ni novvoy dasturchiga bog'lanib qolardi.
+
+**Kirish nuqtasi:** `/mahsulotlar` (faqat kassa guruhida). `setMyCommands` orqali Telegram menyusida bosiladigan qator bo'lib turadi — admin qo'lda yozmaydi.
+
+**1-ekran — ro'yxat.** Har mahsulot bitta inline tugma, narx tugma matnida (matnli ro'yxat takrorlanmaydi — bir ma'lumot ikki joyda turmasin):
+
+```
+🍞 Mahsulotlar
+
+[Non — 5 000 so'm]
+[Patir — 7 000 so'm]
+[➕ Yangi mahsulot]
+```
+
+**2-ekran — mahsulot kartasi.** Yangi xabar emas, o'sha xabar `EditMessageText` bilan almashadi:
+
+```
+🍞 Non — 5 000 so'm
+
+[💵 Narxni o'zgartirish]
+[✏️ Nomini o'zgartirish]
+[🗑 O'chirish]
+[⬅️ Orqaga]
+```
+
+**3-qadam — matn so'rash.** `💵` / `✏️` / `➕` bosilganda bot alohida savol xabarini yuboradi (`ForceReply`, selective, adminni mention qilib), oxirida mashina o'qiydigan quyruq bilan:
+
+```
+Non uchun yangi narxni yozing (masalan: 6000)
+[narx #3 @812]
+```
+
+Admin reply yozgach bot: qiymatni saqlaydi → qisqa tasdiq yuboradi → `@812` (ro'yxat xabarining messageId'si) yordamida eski ro'yxatni joyida qayta chizadi.
+
+Qarorlar va sabablari:
+
+18. **Matn kiritish faqat reply orqali, DB'da admin state YO'Q.** Sabab texnik: BotFather'da privacy mode default yoqilgan va bot guruhda faqat buyruqlarni, o'z xabariga qilingan reply'larni va mention'larni ko'radi — "keyingi matnni ushlayman" degan state mashinasi u xabarni umuman olmaydi. Privacy'ni o'chirish esa botga butun guruh suhbatini ochib beradi. Yon foydasi: `User.state` mijoz flow'ida tegilmay qoladi va ikki admin parallel ishlay oladi.
+19. **Kontekst quyruqda: `[amal #productId @listMessageId]`.** 15-qarordagi kabi holat xabarning o'zida yashaydi, bazada emas. `@listMessageId` tufayli guruhda bitta "tirik" ro'yxat qoladi, yangi-yangi ro'yxatlar to'planmaydi.
+20. **Xato xabari ham o'sha quyruq bilan tugaydi** — admin xato xabariga reply qilib qayta urinadi, halqa uzilmaydi va boshidan boshlash kerak emas.
+21. **Qayta chizish muvaffaqiyatsiz bo'lsa bot buni bilmaydi** (service `BotApiMethod` qaytaradi, `execute` natijasini ko'rmaydi — 15-qaror bilan bir xil sabab). Aynan shuning uchun qisqa tasdiq xabari majburiy: ro'yxat yangilanmasa ham admin amal bajarilganini ko'radi.
+22. **`available` maydoni butunlay olib tashlanadi.** Non tugasa odam navbatga yoziladi, ketmaydi — ya'ni "bugun yo'q" holati hech qachon foydali ish qilmaydi, lekin har ekranda shart-tekshiruv qo'shadi. Eslatma: `ddl-auto: update` ustunni o'chirmaydi, prod bazada qo'lda `drop column` kerak.
+23. **Arxivlash yo'q — o'chirish haqiqiy `delete`.** Lekin `OrderItem` → `Product` FK eski buyurtma tarixini ushlab turadi, shuning uchun `OrderItem`ga `productNameAtOrder` qo'shiladi va `product` FK `nullable` bo'ladi: nom ham xuddi `priceAtOrder` kabi muzlatiladi, mahsulot o'chsa eski karta baribir to'liq chiqadi. O'chirishda service avval shu mahsulotga ishora qilayotgan `OrderItem`larni `null`ga qo'yadi va `CartItem`larni o'chiradi.
+24. **O'chirishda tasdiq tugmasi bor** (`➕` bilan qaytarish nomni va narxni qayta yozishni talab qiladi, ya'ni bir bosishda qaytmaydi). Boshqa joylarda tasdiq so'ramaymiz, bu yerda so'raymiz — chunki amal haqiqatan ham yo'qotuvchi.
+25. **`➕` bitta qadamda:** `Nom va narxni yozing: Non 6000` — oxirgi token narx, qolgani nom (bo'sh joyli nom ishlaydi). Yiliga bir-ikki marta ishlatiladigan amal uchun ikki qadamli sehrgar ortiqcha.
+26. **Validatsiya:** narx — butun son, ajratgichlar (`6 000`, `6_000`) tozalanadi, `0` va manfiy rad; nom — bo'sh emas, ≤ 32 belgi (inline tugmaga nom + narx sig'ishi kerak), `/` bilan boshlanmaydi, unique.
+27. **Faqat kassa guruhida.** Narx — pul masalasi (12-qaror).
+28. **Service'lar `BotApiMethod` emas, `PartialBotApiMethod` qaytaradi.** `SendPhoto` `BotApiMethod` emas (rasm multipart bilan ketadi), ya'ni chek rasmi bilan ishlash uchun tur kengaytirilishi shart edi. Tur ajratish `NonvoyTelegramBot.send`da, bitta joyda. 15-qarorning mohiyati o'zgarmaydi: service baribir `execute` natijasini ko'rmaydi.
+29. **Mahsulot boshqaruvi `ProductAdminService`da, `AdminFlowServiceImpl`da emas** (rejada shunday yozilgan edi). Ikkalasi bitta klassda bo'lsa fayl 400 qatordan oshib, ikki butunlay boshqa mavzu (buyurtma statusi va mahsulot CRUD'i) aralashib ketardi. `AdminFlowServiceImpl` faqat yo'naltiradi.
+
+Vazifalar:
+- [x] `Product`dan `available` olib tashlanadi; `ProductRepository.findFirstByAvailableTrueOrderByIdAsc`, `ProductService.getActiveProduct`/`toggleAvailability` va `AdminFlowServiceImpl`dagi toggle shoxi o'chadi
+- [x] `OrderItem`ga `productNameAtOrder`, `product` FK `nullable`
+- [x] `ProductService`: `create`, `updatePrice`, `rename`, `delete`
+- [x] `ProductPrompt` util — `[amal #id @msgId]` quyrug'ini yasash va o'qish (sof funksiya, test qilish oson)
+- [x] `ProductInput` — `Non 6000` va narx matni + validatsiya xabarlari
+- [x] `ProductAdminService`: 1/2-ekran, `P:*` callback'lar, reply handler
+- [x] `setMyCommands` (kassa guruhi scope)
+- [x] Testlar: quyruq parse, nom+narx parse, o'chirish eski buyurtma kartasini buzmasligi, validatsiya chegaralari
+
 
 ### Parallel vazifa (kod emas)
 - [ ] Novvoy bilan gaplashish: non narxi, turlari, buyurtmalarni kim ko'radi, Telegram guruhga rozimi
+- [ ] To'lov kartasi raqami va egasining ismi (bot chek so'raganda ko'rsatadi)
 
 ## Git / GitHub tartibi
 
@@ -120,12 +302,6 @@ Bu loyiha GitHub'da public repo bo'ladi — portfolio'ning bir qismi. Qoidalar:
 6. **README.md** loyiha oxirida emas, boshida yaratiladi va bosqichma-bosqich to'ldiriladi (nima, nega, stack, ishga tushirish).
 7. **Claude'ning roli:** har vazifa yakunida Claude "hozir commit payti, message taxminan bunday" deb eslatib turadi va commit message'larni review qiladi. Vazifa berilganda qaysi branch'da ishlash ham aytiladi.
 
-## Rejalashtirilgan (MVP'dan keyingi bosqichlar)
-
-Bular MVP'ga kirmaydi, lekin keyin qo'shish rejalashtirilgan (tartib taxminiy):
-
-- **Chek orqali to'lov tekshiruvi (naqd emas, karta o'tkazma):** buyurtma tasdiqlangach mijoz to'lov chekining rasmini yuboradi. Rasm buyurtma kartasiga qo'shilib admin guruhga tushadi. Novvoy pul o'tganini o'zi tekshiradi va shundan keyin "✅ Qabul" yoki "❌ Bekor" qiladi. Ya'ni to'lov integratsiyasi (Click/Payme) YO'Q — tekshiruv qo'lda, chek — shunchaki rasm.
-
 ## Keyinroqqa qoldirilgan (MVP'ga KIRMAYDI)
 
 - Onlayn to'lov (Click/Payme)
@@ -134,4 +310,3 @@ Bular MVP'ga kirmaydi, lekin keyin qo'shish rejalashtirilgan (tartib taxminiy):
 - Statistika / web dashboard
 - Multi-tenant
 - Mahsulot rasmlari
-- COMPLETED status / olib ketishni kuzatish

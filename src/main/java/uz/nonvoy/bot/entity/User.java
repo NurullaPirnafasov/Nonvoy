@@ -25,5 +25,8 @@ public class User extends Auditable {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private UserState state=UserState.NEW;
-    private Integer draftQuantity;
+    /** Miqdor so'ralayotgan mahsulot (WAITING_QUANTITY). */
+    private Long draftProductId;
+    /** Chek rasmining Telegram file_id'si — buyurtma hali yaratilmagani uchun shu yerda kutadi. */
+    private String draftReceiptFileId;
 }
