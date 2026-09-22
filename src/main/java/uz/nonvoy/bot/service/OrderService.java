@@ -27,6 +27,13 @@ public interface OrderService {
      */
     Order createOrder(User user);
 
+    /**
+     * To'lovi hali tekshirilmagan buyurtma. Chek — oddiy rasm, uni hech kim avtomatik
+     * tekshirmaydi, shuning uchun bitta mijozda bir vaqtda bitta tekshirilmagan buyurtma
+     * bo'lishi mumkin — aks holda kassa guruhini soxta buyurtmalar bilan to'ldirib tashlash oson.
+     */
+    Optional<Order> findPendingPayment(User user);
+
     Optional<Order> findById(Long orderId);
 
     List<OrderItem> findItems(Order order);

@@ -112,6 +112,31 @@ class OrderServiceImplTest {
         assertThrows(IllegalStateException.class, () -> orderService.changeStatus(99L, OrderStatus.ACCEPTED));
     }
 
+    // --- Tekshirilmagan buyurtma ---
+
+    /**
+     * Faqat `NEW` yangi buyurtmani to'sadi. `ACCEPTED`da pul allaqachon kelgan, ya'ni bu
+     * odam spamer emas — non tandirda turganda ham yana buyurtma bera olishi kerak.
+     */
+    @Test
+    void onlyUnverifiedOrderBlocksTheNextOne() {
+        User user = user();
+        Order pending = order(OrderStatus.NEW);
+        when(orderRepository.findFirstByUserIdAndStatusOrderByIdAsc(1L, OrderStatus.NEW))
+                .thenReturn(Optional.of(pending));
+
+        assertEquals(Optional.of(pending), orderService.findPendingPayment(user));
+        verify(orderRepository).findFirstByUserIdAndStatusOrderByIdAsc(1L, OrderStatus.NEW);
+    }
+
+    @Test
+    void noPendingOrderMeansOrderingIsOpen() {
+        when(orderRepository.findFirstByUserIdAndStatusOrderByIdAsc(1L, OrderStatus.NEW))
+                .thenReturn(Optional.empty());
+
+        assertTrue(orderService.findPendingPayment(user()).isEmpty());
+    }
+
     // --- Savatdan buyurtma yaratish ---
 
     /** Mahsulot narxi keyin o'zgarsa ham buyurtma tarixi buzilmasligi kerak. */

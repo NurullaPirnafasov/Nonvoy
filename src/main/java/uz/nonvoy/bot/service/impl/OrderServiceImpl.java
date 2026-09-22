@@ -48,6 +48,11 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public Optional<Order> findPendingPayment(User user) {
+        return orderRepository.findFirstByUserIdAndStatusOrderByIdAsc(user.getId(), OrderStatus.NEW);
+    }
+
+    @Override
     public Optional<Order> findById(Long orderId) {
         return orderRepository.findById(orderId);
     }

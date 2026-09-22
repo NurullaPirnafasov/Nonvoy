@@ -7,7 +7,7 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.PartialBotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageCaption;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -163,6 +164,17 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
 
     /** Eski savat qolib ketmasin: yangi buyurtma doim toza savatdan boshlanadi. */
     private List<PartialBotApiMethod<?>> startOrder(User user, Long chatId) {
+        // Chek — oddiy rasm, uni hech kim avtomatik tekshirmaydi. Shuning uchun bir vaqtda
+        // bitta tekshirilmagan buyurtma: aks holda kassa guruhini soxta buyurtma bilan
+        // to'ldirib tashlash oson. To'lov tasdiqlangach (ACCEPTED) qulf o'zi ochiladi.
+        Optional<Order> pending = orderService.findPendingPayment(user);
+        if (pending.isPresent()) {
+            return reply(chatId,
+                    "Oldingi buyurtmangiz #" + pending.get().getId() + " to'lov tekshiruvida ⏳\n"
+                            + "Tasdiqlangach yangi buyurtma bera olasiz",
+                    orderKeyboard());
+        }
+
         cartService.clear(user);
         List<Product> products = productService.findAll();
         if (products.isEmpty()) {
@@ -287,8 +299,9 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         if (FINAL_CANCEL.equals(data)) {
             cartService.clear(user);
             userService.resetToIdle(user);
-            result.add(stripCaption(chatId, messageId, "Buyurtma bekor qilindi ❌"));
-            result.add(message(chatId, "Buyurtma berish uchun tugmani bosing", orderKeyboard()));
+            result.add(removeScreen(chatId, messageId));
+            result.add(message(chatId, "Buyurtma bekor qilindi ❌\nBuyurtma berish uchun tugmani bosing",
+                    orderKeyboard()));
             return result;
         }
 
@@ -296,18 +309,22 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         try {
             order = orderService.createOrder(user);
         } catch (IllegalStateException e) {
-            // Savat yoki chek yo'qolgan holat: boshidan boshlash kerak
+            // Savat yoki chek yo'qolgan holat. Ikki marta bosishning ikkinchisi ham shu yerga
+            // tushadi: birinchisi savatni tozalab ulgurgan bo'ladi, ya'ni ikkinchi buyurtma
+            // yaratilmaydi
             cartService.clear(user);
             userService.resetToIdle(user);
-            result.add(stripCaption(chatId, messageId, "Buyurtma rasmiylashtirilmadi"));
-            result.add(message(chatId, "Qaytadan urinib ko'ring", orderKeyboard()));
+            result.add(removeScreen(chatId, messageId));
+            result.add(message(chatId, "Buyurtma rasmiylashtirilmadi. Qaytadan urinib ko'ring",
+                    orderKeyboard()));
             return result;
         }
 
-        result.add(stripCaption(chatId, messageId,
-                "Buyurtmangiz #" + order.getId() + " qabul qilindi. To'lov tekshirilmoqda ⏳"));
+        result.add(removeScreen(chatId, messageId));
+        result.add(message(chatId,
+                "Buyurtmangiz #" + order.getId() + " qabul qilindi. To'lov tekshirilmoqda ⏳",
+                orderKeyboard()));
         result.add(paymentGroupCard(order));
-        result.add(message(chatId, "Yangi buyurtma uchun tugmani bosing", orderKeyboard()));
         return result;
     }
 
@@ -391,11 +408,14 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                 .build();
     }
 
-    private EditMessageCaption stripCaption(Long chatId, Integer messageId, String caption) {
-        return EditMessageCaption.builder()
+    /**
+     * Chek rasmi tasdiqdan keyin mijozga hech narsa aytmaydi — caption almashtirish o'rniga
+     * ekran butunlay olib tashlanadi, chatda faqat natija matni qoladi.
+     */
+    private DeleteMessage removeScreen(Long chatId, Integer messageId) {
+        return DeleteMessage.builder()
                 .chatId(chatId)
                 .messageId(messageId)
-                .caption(caption)
                 .build();
     }
 
