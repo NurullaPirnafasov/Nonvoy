@@ -118,7 +118,8 @@ Admin buyruq: `/mahsulotlar` — mahsulotlarni inline tugmalar orqali boshqarish
 - [x] Exception handling, edge case'lar (ikki marta bosish, noto'g'ri raqam, bekor qilingan buyurtmani "Tayyor" qilish)
 - [x] **Matn/kontakt bo'lmagan update'ga javob berish.** Hozir `NonvoyTelegramBot.isTextOrContact` filtridan o'tmagan hamma narsa (rasm, stiker, ovoz) jimgina tashlanadi — foydalanuvchi stiker yuborsa bot javob bermaydi va nima kutilayotganini bilmaydi. Har state uchun "hozir nima kerakligi"ni eslatuvchi javob bo'lsin. Eslatma: chek rasmini qabul qilish (rejalashtirilgan feature) aynan shu filtrga tiqiladi
 - [x] **README.md** — nima, nega, stack, ishga tushirish. Repo public va portfolio'ning bir qismi, README'siz repo tashrif buyuruvchi uchun bo'sh
-- [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas)
+- [ ] **Flyway — deploy'dan OLDIN.** `ddl-auto: update` sxemani yarim yangilaydi: enum'ga yangi qiymat qo'shilsa Hibernate yaratgan `CHECK (state IN (...))` constraint'i eskiligicha qoladi va bot runtime'da `DataIntegrityViolationException` beradi (5-bosqichda `users_state_check` aynan shunday portladi); o'chirilgan maydon ustuni ham jadvalda qolib ketadi (`draft_quantity`, `available`). Lokal bazada qo'lda `ALTER` bilan tuzatish mumkin, prod'da esa yo'q. Reja: `ddl-auto: validate` + `V1__init.sql` (hozirgi sxema) va har o'zgarish uchun yangi migratsiya
+- [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas). Eslatma: O'zbekistondan `api.telegram.org` to'siladi — lokal ishlab chiqishda VPN yoki proxy kerak, VPS chet elda bo'lsa muammo yo'q
 - [ ] Novvoyga ko'rsatish, real test, tuzatishlar
 
 ### 5-bosqich: Savatcha va chek orqali to'lov (bajarildi)
