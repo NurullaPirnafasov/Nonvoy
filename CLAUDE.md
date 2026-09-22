@@ -121,7 +121,7 @@ Admin buyruq: `/mahsulotlar` — mahsulotlarni inline tugmalar orqali boshqarish
 - [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas)
 - [ ] Novvoyga ko'rsatish, real test, tuzatishlar
 
-### 5-bosqich: Savatcha va chek orqali to'lov (reja tayyor)
+### 5-bosqich: Savatcha va chek orqali to'lov (bajarildi)
 
 Yangi flow — mijoz tomoni (buyurtma yaratilgungacha):
 
@@ -194,32 +194,32 @@ Savatni tozalash kerak bo'lgan joylar (hech biri esdan chiqmasin):
 `/start` · `CART_REVIEW` Bekor · `FINAL_CONFIRM` Bekor · buyurtma yaratilgandan keyin · `IDLE`dan yangi buyurtma boshlanganda (eski savat qolib ketmasin)
 
 Vazifalar:
-- [ ] `CartItem` entity + repository, `UserState`ga yangi qadamlar, `User`ga `draftProductId` / `draftReceiptFileId` (`draftQuantity` o'rniga)
-- [ ] `CartService` — qo'shish (miqdor birlashtirish bilan), ro'yxat, jami summa, tozalash
-- [ ] Mahsulot tanlash qadami (`WAITING_PRODUCT`) va `ProductService.getActiveProduct()` o'rniga id bo'yicha qidirish
-- [ ] `CART_REVIEW` ekrani va "Yana" halqasi
-- [ ] Chek qadami (`WAITING_RECEIPT`) — rasm validatsiyasi, albom rad etish
-- [ ] `FINAL_CONFIRM` — chek rasmi + savat, buyurtma yaratish (`OrderService` savatdan `OrderItem` yasaydi, `priceAtOrder` muzlatadi), kassaga yuborish
+- [x] `CartItem` entity + repository, `UserState`ga yangi qadamlar, `User`ga `draftProductId` / `draftReceiptFileId` (`draftQuantity` o'rniga)
+- [x] `CartService` — qo'shish (miqdor birlashtirish bilan), ro'yxat, jami summa, tozalash
+- [x] Mahsulot tanlash qadami (`WAITING_PRODUCT`) va `ProductService.getActiveProduct()` o'rniga id bo'yicha qidirish
+- [x] `CART_REVIEW` ekrani va "Yana" halqasi
+- [x] Chek qadami (`WAITING_RECEIPT`) — rasm validatsiyasi, albom rad etish
+- [x] `FINAL_CONFIRM` — chek rasmi + savat, buyurtma yaratish (`OrderService` savatdan `OrderItem` yasaydi, `priceAtOrder` muzlatadi), kassaga yuborish
 - [x] `application.yml`: `bot.payment-card`, `bot.payment-card-holder` (dummy default bilan), `bot.worker-group-id`
 
 Ikki guruh vazifalari:
-- [ ] `Order`ga `receiptFileId`
-- [ ] `NonvoyTelegramBot` ikkala guruh id'sini `AdminFlowService`ga yo'naltiradi
-- [ ] `OrderCardFormatter.keyboard(order, audience)` — `audience` = `PAYMENT` | `KITCHEN`; kassa/ishchilar uchun alohida matn (ishchilarda telefon va narx yo'q)
-- [ ] Callback guruhga bog'lanadi (17-qaror)
-- [ ] Buyurtma yaratilganda kassaga `SendPhoto` + caption + tugmalar, mijozga "to'lov tekshirilmoqda"
-- [ ] Kassa `✅`: `EditMessageCaption` + ishchilarga karta + mijozga xabar
-- [ ] Kassa `❌` (`ACCEPTED` da): qo'shimcha ishchilarga "yopmang" xabari
-- [ ] Ishchilar `🍞`: `EditMessageText` + mijozga xabar
-- [ ] `CANCELLED` matni eski statusdan (11-qaror)
-- [ ] Testlar: ikki audience klaviaturasi, bekor qilish matnlari, caption uzunligi
+- [x] `Order`ga `receiptFileId`
+- [x] `NonvoyTelegramBot` ikkala guruh id'sini `AdminFlowService`ga yo'naltiradi
+- [x] `OrderCardFormatter.keyboard(order, audience)` — `audience` = `PAYMENT` | `KITCHEN`; kassa/ishchilar uchun alohida matn (ishchilarda telefon va narx yo'q)
+- [x] Callback guruhga bog'lanadi (17-qaror)
+- [x] Buyurtma yaratilganda kassaga `SendPhoto` + caption + tugmalar, mijozga "to'lov tekshirilmoqda"
+- [x] Kassa `✅`: `EditMessageCaption` + ishchilarga karta + mijozga xabar
+- [x] Kassa `❌` (`ACCEPTED` da): qo'shimcha ishchilarga "yopmang" xabari
+- [x] Ishchilar `🍞`: `EditMessageText` + mijozga xabar
+- [x] `CANCELLED` matni eski statusdan (11-qaror)
+- [x] Testlar: ikki audience klaviaturasi, bekor qilish matnlari, caption uzunligi
 
 Ochiq savollar:
 - To'lov kartasi raqami va egasi novvoydan olinadi (hozircha dummy: `8600 1234 5678 9012`, `Ism Familiya`; prod'da `PAYMENT_CARD` / `PAYMENT_CARD_HOLDER` env)
 
-### 6-bosqich: Mahsulot boshqaruvi (reja tayyor)
+### 6-bosqich: Mahsulot boshqaruvi (bajarildi)
 
-Hozir `/mahsulotlar` faqat "bor/tugadi" toggle qiladi — mahsulot qo'shish, narx yoki nomni o'zgartirish faqat SQL orqali. Bu novvoyni dasturchiga bog'lab qo'yadi. Bosqich shuni yopadi.
+Bosqichgacha `/mahsulotlar` faqat "bor/tugadi" toggle qilardi — mahsulot qo'shish, narx yoki nomni o'zgartirish faqat SQL orqali edi, ya'ni novvoy dasturchiga bog'lanib qolardi.
 
 **Kirish nuqtasi:** `/mahsulotlar` (faqat kassa guruhida). `setMyCommands` orqali Telegram menyusida bosiladigan qator bo'lib turadi — admin qo'lda yozmaydi.
 
@@ -265,16 +265,18 @@ Qarorlar va sabablari:
 25. **`➕` bitta qadamda:** `Nom va narxni yozing: Non 6000` — oxirgi token narx, qolgani nom (bo'sh joyli nom ishlaydi). Yiliga bir-ikki marta ishlatiladigan amal uchun ikki qadamli sehrgar ortiqcha.
 26. **Validatsiya:** narx — butun son, ajratgichlar (`6 000`, `6_000`) tozalanadi, `0` va manfiy rad; nom — bo'sh emas, ≤ 32 belgi (inline tugmaga nom + narx sig'ishi kerak), `/` bilan boshlanmaydi, unique.
 27. **Faqat kassa guruhida.** Narx — pul masalasi (12-qaror).
+28. **Service'lar `BotApiMethod` emas, `PartialBotApiMethod` qaytaradi.** `SendPhoto` `BotApiMethod` emas (rasm multipart bilan ketadi), ya'ni chek rasmi bilan ishlash uchun tur kengaytirilishi shart edi. Tur ajratish `NonvoyTelegramBot.send`da, bitta joyda. 15-qarorning mohiyati o'zgarmaydi: service baribir `execute` natijasini ko'rmaydi.
+29. **Mahsulot boshqaruvi `ProductAdminService`da, `AdminFlowServiceImpl`da emas** (rejada shunday yozilgan edi). Ikkalasi bitta klassda bo'lsa fayl 400 qatordan oshib, ikki butunlay boshqa mavzu (buyurtma statusi va mahsulot CRUD'i) aralashib ketardi. `AdminFlowServiceImpl` faqat yo'naltiradi.
 
 Vazifalar:
-- [ ] `Product`dan `available` olib tashlanadi; `ProductRepository.findFirstByAvailableTrueOrderByIdAsc`, `ProductService.getActiveProduct`/`toggleAvailability` va `AdminFlowServiceImpl`dagi toggle shoxi o'chadi
-- [ ] `OrderItem`ga `productNameAtOrder`, `product` FK `nullable`
-- [ ] `ProductService`: `create`, `updatePrice`, `rename`, `delete`
-- [ ] `ProductPrompt` util — `[amal #id @msgId]` quyrug'ini yasash va o'qish (sof funksiya, test qilish oson)
-- [ ] `ProductInputParser` — `Non 6000` va narx matni + validatsiya xabarlari
-- [ ] `AdminFlowServiceImpl`: 1/2-ekran, `P:*` callback'lar, reply handler
-- [ ] `setMyCommands` (kassa guruhi scope)
-- [ ] Testlar: quyruq parse, nom+narx parse, o'chirish eski buyurtma kartasini buzmasligi, validatsiya chegaralari
+- [x] `Product`dan `available` olib tashlanadi; `ProductRepository.findFirstByAvailableTrueOrderByIdAsc`, `ProductService.getActiveProduct`/`toggleAvailability` va `AdminFlowServiceImpl`dagi toggle shoxi o'chadi
+- [x] `OrderItem`ga `productNameAtOrder`, `product` FK `nullable`
+- [x] `ProductService`: `create`, `updatePrice`, `rename`, `delete`
+- [x] `ProductPrompt` util — `[amal #id @msgId]` quyrug'ini yasash va o'qish (sof funksiya, test qilish oson)
+- [x] `ProductInput` — `Non 6000` va narx matni + validatsiya xabarlari
+- [x] `ProductAdminService`: 1/2-ekran, `P:*` callback'lar, reply handler
+- [x] `setMyCommands` (kassa guruhi scope)
+- [x] Testlar: quyruq parse, nom+narx parse, o'chirish eski buyurtma kartasini buzmasligi, validatsiya chegaralari
 
 
 ### Parallel vazifa (kod emas)
