@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import uz.nonvoy.bot.entity.CartItem;
 import uz.nonvoy.bot.entity.Order;
 import uz.nonvoy.bot.entity.OrderItem;
 import uz.nonvoy.bot.entity.Product;
@@ -13,10 +14,12 @@ import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.OrderStatus;
 import uz.nonvoy.bot.repository.OrderItemRepository;
 import uz.nonvoy.bot.repository.OrderRepository;
-import uz.nonvoy.bot.service.ProductService;
+import uz.nonvoy.bot.service.CartService;
+import uz.nonvoy.bot.service.StatusChange;
 import uz.nonvoy.bot.service.UserService;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,7 +34,7 @@ class OrderServiceImplTest {
     @Mock
     private OrderItemRepository orderItemRepository;
     @Mock
-    private ProductService productService;
+    private CartService cartService;
     @Mock
     private UserService userService;
 
@@ -42,14 +45,24 @@ class OrderServiceImplTest {
 
     @Test
     void newCanBeAcceptedOrCancelled() {
-        assertEquals(OrderStatus.ACCEPTED, transition(OrderStatus.NEW, OrderStatus.ACCEPTED).getStatus());
-        assertEquals(OrderStatus.CANCELLED, transition(OrderStatus.NEW, OrderStatus.CANCELLED).getStatus());
+        assertEquals(OrderStatus.ACCEPTED, transition(OrderStatus.NEW, OrderStatus.ACCEPTED).order().getStatus());
+        assertEquals(OrderStatus.CANCELLED, transition(OrderStatus.NEW, OrderStatus.CANCELLED).order().getStatus());
     }
 
     @Test
     void acceptedCanBecomeReadyOrCancelled() {
-        assertEquals(OrderStatus.READY, transition(OrderStatus.ACCEPTED, OrderStatus.READY).getStatus());
-        assertEquals(OrderStatus.CANCELLED, transition(OrderStatus.ACCEPTED, OrderStatus.CANCELLED).getStatus());
+        assertEquals(OrderStatus.READY, transition(OrderStatus.ACCEPTED, OrderStatus.READY).order().getStatus());
+        assertEquals(OrderStatus.CANCELLED, transition(OrderStatus.ACCEPTED, OrderStatus.CANCELLED).order().getStatus());
+    }
+
+    /**
+     * Mijozga boradigan matn eski statusdan chiqadi (11-qaror): NEW→CANCELLED "to'lov
+     * topilmadi", ACCEPTED→CANCELLED "bekor qilindi". Shuning uchun eski holat qaytariladi.
+     */
+    @Test
+    void changeReportsPreviousStatus() {
+        assertEquals(OrderStatus.NEW, transition(OrderStatus.NEW, OrderStatus.CANCELLED).from());
+        assertEquals(OrderStatus.ACCEPTED, transition(OrderStatus.ACCEPTED, OrderStatus.CANCELLED).from());
     }
 
     /** Qabul qilinmagan buyurtma tayyor bo'la olmaydi - navbat tartibi buzilmasin. */
@@ -58,7 +71,7 @@ class OrderServiceImplTest {
         assertThrows(IllegalStateException.class, () -> transition(OrderStatus.NEW, OrderStatus.READY));
     }
 
-    /** Bekor qilingan buyurtmani "Tayyor" qilish - novvoy tugmani adashib bosgan holat. */
+    /** Bekor qilingan buyurtmani "Tayyor" qilish - ishchi tugmani adashib bosgan holat. */
     @Test
     void cancelledIsFinal() {
         for (OrderStatus target : OrderStatus.values()) {
@@ -99,58 +112,91 @@ class OrderServiceImplTest {
         assertThrows(IllegalStateException.class, () -> orderService.changeStatus(99L, OrderStatus.ACCEPTED));
     }
 
-    // --- Buyurtma yaratish ---
+    // --- Savatdan buyurtma yaratish ---
 
     /** Mahsulot narxi keyin o'zgarsa ham buyurtma tarixi buzilmasligi kerak. */
     @Test
-    void orderItemFreezesPrice() {
-        Product product = product(BigDecimal.valueOf(5000));
-        User user = user(10);
-        when(productService.getActiveProduct()).thenReturn(Optional.of(product));
+    void orderItemsFreezePrice() {
+        Product non = product("Non", 5000);
+        Product patir = product("Patir", 7000);
+        User user = userWithReceipt();
+        cartContains(user, cartItem(non, 10), cartItem(patir, 5));
+        when(cartService.calculateTotal(any())).thenReturn(BigDecimal.valueOf(85000));
         when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
 
         Order order = orderService.createOrder(user);
 
-        assertEquals(BigDecimal.valueOf(50000), order.getTotalAmountMoney());
+        assertEquals(BigDecimal.valueOf(85000), order.getTotalAmountMoney());
 
-        product.setPrice(BigDecimal.valueOf(6000));
-        OrderItem saved = captureSavedItem();
-        assertEquals(BigDecimal.valueOf(5000), saved.getPriceAtOrder());
-        assertEquals(10, saved.getQuantity());
+        non.setPrice(BigDecimal.valueOf(6000));
+        List<OrderItem> saved = captureSavedItems();
+        assertEquals(2, saved.size());
+        assertEquals(BigDecimal.valueOf(5000), saved.get(0).getPriceAtOrder());
+        assertEquals(10, saved.get(0).getQuantity());
+        assertEquals(BigDecimal.valueOf(7000), saved.get(1).getPriceAtOrder());
     }
 
+    /** Chek buyurtma bilan birga saqlanadi — kassa kartasi aynan shu rasm bilan chiqadi. */
     @Test
-    void createOrderResetsUserToIdle() {
-        when(productService.getActiveProduct()).thenReturn(Optional.of(product(BigDecimal.valueOf(5000))));
+    void orderKeepsReceipt() {
+        User user = userWithReceipt();
+        cartContains(user, cartItem(product("Non", 5000), 1));
+        when(cartService.calculateTotal(any())).thenReturn(BigDecimal.valueOf(5000));
         when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
-        User user = user(3);
+
+        assertEquals("chek-file-id", orderService.createOrder(user).getReceiptFileId());
+    }
+
+    /** Buyurtma yaratilgach savat ham, qoralama ham qolmasligi kerak. */
+    @Test
+    void createOrderClearsCartAndDraft() {
+        User user = userWithReceipt();
+        cartContains(user, cartItem(product("Non", 5000), 1));
+        when(cartService.calculateTotal(any())).thenReturn(BigDecimal.valueOf(5000));
+        when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
 
         orderService.createOrder(user);
 
+        verify(cartService).clear(user);
         verify(userService).resetToIdle(user);
     }
 
-    /** Miqdor kiritilgach novvoy nonni "tugadi" qilib qo'ysa. */
     @Test
-    void createOrderFailsWhenNothingIsAvailable() {
-        when(productService.getActiveProduct()).thenReturn(Optional.empty());
+    void emptyCartCannotBecomeOrder() {
+        User user = userWithReceipt();
+        cartContains(user);
 
-        assertThrows(IllegalStateException.class, () -> orderService.createOrder(user(5)));
+        assertThrows(IllegalStateException.class, () -> orderService.createOrder(user));
+        verify(orderRepository, never()).save(any());
+    }
+
+    /** Chek yo'q bo'lsa kassa tekshiradigan narsa qolmaydi. */
+    @Test
+    void orderWithoutReceiptIsRejected() {
+        User user = user();
+        cartContains(user, cartItem(product("Non", 5000), 1));
+
+        assertThrows(IllegalStateException.class, () -> orderService.createOrder(user));
         verify(orderRepository, never()).save(any());
     }
 
     // --- Yordamchilar ---
 
-    private Order transition(OrderStatus from, OrderStatus to) {
+    private StatusChange transition(OrderStatus from, OrderStatus to) {
         Order order = order(from);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         lenient().when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
         return orderService.changeStatus(1L, to);
     }
 
-    private OrderItem captureSavedItem() {
-        ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
-        verify(orderItemRepository).save(captor.capture());
+    private void cartContains(User user, CartItem... items) {
+        when(cartService.findItems(user)).thenReturn(List.of(items));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<OrderItem> captureSavedItems() {
+        ArgumentCaptor<List<OrderItem>> captor = ArgumentCaptor.forClass(List.class);
+        verify(orderItemRepository).saveAll(captor.capture());
         return captor.getValue();
     }
 
@@ -160,15 +206,25 @@ class OrderServiceImplTest {
         return order;
     }
 
-    private Product product(BigDecimal price) {
-        Product product = Product.builder().name("Non").price(price).available(true).build();
+    private Product product(String name, long price) {
+        Product product = Product.builder().name(name).price(BigDecimal.valueOf(price)).build();
         product.setId(1L);
         return product;
     }
 
-    private User user(int draftQuantity) {
-        User user = User.builder().telegramId(123L).name("Alisher").draftQuantity(draftQuantity).build();
+    private CartItem cartItem(Product product, int quantity) {
+        return CartItem.builder().product(product).quantity(quantity).build();
+    }
+
+    private User user() {
+        User user = User.builder().telegramId(123L).name("Alisher").build();
         user.setId(1L);
+        return user;
+    }
+
+    private User userWithReceipt() {
+        User user = user();
+        user.setDraftReceiptFileId("chek-file-id");
         return user;
     }
 }

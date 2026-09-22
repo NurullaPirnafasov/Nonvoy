@@ -3,19 +3,18 @@ package uz.nonvoy.bot.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uz.nonvoy.bot.entity.CartItem;
 import uz.nonvoy.bot.entity.Order;
 import uz.nonvoy.bot.entity.OrderItem;
-import uz.nonvoy.bot.entity.Product;
 import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.OrderStatus;
 import uz.nonvoy.bot.repository.OrderItemRepository;
 import uz.nonvoy.bot.repository.OrderRepository;
+import uz.nonvoy.bot.service.CartService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.StatusChange;
-import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,7 +24,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
-    private final ProductService productService;
+    private final CartService cartService;
     private final UserService userService;
 
     @Transactional
@@ -49,11 +48,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public BigDecimal calculateTotal(Product product, int quantity) {
-        return product.getPrice().multiply(BigDecimal.valueOf(quantity));
-    }
-
-    @Override
     public Optional<Order> findById(Long orderId) {
         return orderRepository.findById(orderId);
     }
@@ -66,22 +60,34 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     @Override
     public Order createOrder(User user) {
-        Product product = productService.getActiveProduct()
-                .orElseThrow(() -> new IllegalStateException("Faol mahsulot yo'q"));
-        int quantity = user.getDraftQuantity();
-        Order order = Order.builder()
-                .totalAmountMoney(calculateTotal(product, quantity))
+        List<CartItem> cartItems = cartService.findItems(user);
+        if (cartItems.isEmpty()) {
+            throw new IllegalStateException("Savat bo'sh");
+        }
+        String receiptFileId = user.getDraftReceiptFileId();
+        if (receiptFileId == null || receiptFileId.isBlank()) {
+            throw new IllegalStateException("Chek yuborilmagan");
+        }
+
+        Order order = orderRepository.save(Order.builder()
                 .user(user)
-                .build();
-        Order savedOrder = orderRepository.save(order);
-        OrderItem item = OrderItem.builder()
-                .order(savedOrder)
-                .product(product)
-                .quantity(quantity)
-                .priceAtOrder(product.getPrice())
-                .build();
-        orderItemRepository.save(item);
+                .receiptFileId(receiptFileId)
+                .totalAmountMoney(cartService.calculateTotal(cartItems))
+                .build());
+
+        // Narx ham, miqdor ham shu daqiqada muzlatiladi: mahsulot narxi keyin
+        // o'zgarsa buyurtma tarixi buzilmasligi kerak
+        orderItemRepository.saveAll(cartItems.stream()
+                .map(cartItem -> OrderItem.builder()
+                        .order(order)
+                        .product(cartItem.getProduct())
+                        .quantity(cartItem.getQuantity())
+                        .priceAtOrder(cartItem.getProduct().getPrice())
+                        .build())
+                .toList());
+
+        cartService.clear(user);
         userService.resetToIdle(user);
-        return savedOrder;
+        return order;
     }
 }

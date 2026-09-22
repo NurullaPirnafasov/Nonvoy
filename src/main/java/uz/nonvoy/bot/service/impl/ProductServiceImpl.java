@@ -17,13 +17,13 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
 
     @Override
-    public Optional<Product> getActiveProduct() {
-        return productRepository.findFirstByAvailableTrueOrderByIdAsc();
+    public List<Product> findAll() {
+        return productRepository.findAllByOrderByIdAsc();
     }
 
     @Override
-    public List<Product> findAll() {
-        return productRepository.findAllByOrderByIdAsc();
+    public Optional<Product> findById(Long productId) {
+        return productId == null ? Optional.empty() : productRepository.findById(productId);
     }
 
     @Transactional

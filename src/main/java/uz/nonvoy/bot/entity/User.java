@@ -29,6 +29,4 @@ public class User extends Auditable {
     private Long draftProductId;
     /** Chek rasmining Telegram file_id'si — buyurtma hali yaratilmagani uchun shu yerda kutadi. */
     private String draftReceiptFileId;
-    @Deprecated
-    private Integer draftQuantity;
 }

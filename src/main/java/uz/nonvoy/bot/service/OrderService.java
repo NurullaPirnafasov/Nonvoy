@@ -2,11 +2,9 @@ package uz.nonvoy.bot.service;
 
 import uz.nonvoy.bot.entity.Order;
 import uz.nonvoy.bot.entity.OrderItem;
-import uz.nonvoy.bot.entity.Product;
 import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.OrderStatus;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,11 +19,15 @@ public interface OrderService {
      */
     StatusChange changeStatus(Long orderId, OrderStatus newStatus);
 
+    /**
+     * Savatdan buyurtma yasaydi: narxlar {@code priceAtOrder}da muzlatiladi, savat
+     * va chek qoralamasi tozalanadi.
+     *
+     * @throws IllegalStateException savat bo'sh yoki chek yuborilmagan bo'lsa
+     */
     Order createOrder(User user);
 
     Optional<Order> findById(Long orderId);
 
     List<OrderItem> findItems(Order order);
-
-    BigDecimal calculateTotal(Product product, int quantity);
 }

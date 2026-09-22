@@ -16,7 +16,5 @@ public enum UserState {
     WAITING_RECEIPT,
     /** Chek + savat ko'rsatildi, yakuniy tasdiq kutilmoqda. */
     FINAL_CONFIRM,
-    @Deprecated
-    CONFIRMING,
     IDLE
 }

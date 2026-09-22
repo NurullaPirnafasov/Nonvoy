@@ -7,9 +7,9 @@ import java.util.Optional;
 
 public interface ProductService {
 
-    Optional<Product> getActiveProduct();
-
     List<Product> findAll();
+
+    Optional<Product> findById(Long productId);
 
     /** "Bor / tugadi" holatini teskarisiga o'giradi. Mahsulot topilmasa — bo'sh Optional. */
     Optional<Product> toggleAvailability(Long productId);

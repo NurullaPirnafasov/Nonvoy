@@ -10,7 +10,12 @@ public interface UserService {
 
     void updateState(User user, UserState newState);
 
-    void saveQuantity(int quantity, User user);
+    /** Miqdor so'rashdan oldin tanlangan mahsulotni eslab qoladi. */
+    void saveDraftProduct(User user, Long productId);
 
+    /** Chek rasmi buyurtma yaratilgungacha shu yerda kutadi. */
+    void saveReceipt(User user, String receiptFileId);
+
+    /** Qoralama (mahsulot va chek) tozalanadi — yarim qolgan buyurtma keyingisiga aralashmasin. */
     void resetToIdle(User user);
 }

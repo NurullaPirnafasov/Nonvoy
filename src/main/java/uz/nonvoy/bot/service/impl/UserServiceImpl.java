@@ -19,12 +19,11 @@ public class UserServiceImpl implements UserService {
         Optional<User> user = userRepository.findByTelegramId(telegramId);
         if (user.isPresent()) {
             return user.get();
-        } else {
-            User u = new User();
-            u.setTelegramId(telegramId);
-            u.setName(name);
-            return userRepository.save(u);
         }
+        User created = new User();
+        created.setTelegramId(telegramId);
+        created.setName(name);
+        return userRepository.save(created);
     }
 
     @Override
@@ -41,16 +40,24 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void saveQuantity(int quantity, User user) {
-        user.setDraftQuantity(quantity);
-        user.setState(UserState.CONFIRMING);
+    public void saveDraftProduct(User user, Long productId) {
+        user.setDraftProductId(productId);
+        user.setState(UserState.WAITING_QUANTITY);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void saveReceipt(User user, String receiptFileId) {
+        user.setDraftReceiptFileId(receiptFileId);
+        user.setState(UserState.FINAL_CONFIRM);
         userRepository.save(user);
     }
 
     @Override
     public void resetToIdle(User user) {
         user.setState(UserState.IDLE);
-        user.setDraftQuantity(null);
+        user.setDraftProductId(null);
+        user.setDraftReceiptFileId(null);
         userRepository.save(user);
     }
 }
