@@ -107,9 +107,23 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
             try {
                 send(method);
             } catch (TelegramApiException e) {
-                log.error("Telegram API Exception", e);
+                if (isAlreadyUpToDate(e)) {
+                    log.debug("Xabar o'zgarmadi, tahrirlash o'tkazib yuborildi: {}", method.getClass().getSimpleName());
+                } else {
+                    log.error("Telegram API Exception", e);
+                }
             }
         }
+    }
+
+    /**
+     * Kartani haqiqiy holatga moslash urinishi (15-qaror) karta allaqachon to'g'ri bo'lganda
+     * shu xatoga tushadi — masalan admin bir tugmani ikki marta bosganda. Telegram bir xil
+     * kontent bilan tahrirlashni rad etadi, lekin bu xato emas: natija baribir kutilganidek.
+     * Haqiqiy xatolar ko'rinib tursin uchun ERROR'ga aralashtirmaymiz.
+     */
+    private boolean isAlreadyUpToDate(TelegramApiException e) {
+        return e.getMessage() != null && e.getMessage().contains("message is not modified");
     }
 
     /**
