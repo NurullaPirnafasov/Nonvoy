@@ -19,9 +19,3 @@ bot:
   # Vaqtinchalik dummy qiymatlar - novvoydan olingach env orqali almashtiriladi
   payment-card: ${PAYMENT_CARD:8600 1234 5678 9012}
   payment-card-holder: ${PAYMENT_CARD_HOLDER:Ism Familiya}
-  # api.telegram.org O'zbekistondan to'siladi — lokalda proxy kerak bo'ladi.
-  # NO_PROXY | HTTP | SOCKS4 | SOCKS5. Chet eldagi VPS'da o'chiq qoladi.
-  proxy:
-    type: ${BOT_PROXY_TYPE:NO_PROXY}
-    host: ${BOT_PROXY_HOST:}
-    port: ${BOT_PROXY_PORT:0}

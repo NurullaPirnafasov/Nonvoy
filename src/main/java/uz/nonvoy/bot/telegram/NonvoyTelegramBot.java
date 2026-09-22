@@ -1,9 +1,9 @@
 package uz.nonvoy.bot.telegram;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
@@ -24,19 +24,12 @@ import uz.nonvoy.bot.service.CustomerFlowService;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 @Slf4j
 public class NonvoyTelegramBot extends TelegramLongPollingBot {
 
     private final CustomerFlowService customerFlowService;
     private final AdminFlowService adminFlowService;
-
-    public NonvoyTelegramBot(DefaultBotOptions botOptions,
-                             CustomerFlowService customerFlowService,
-                             AdminFlowService adminFlowService) {
-        super(botOptions);
-        this.customerFlowService = customerFlowService;
-        this.adminFlowService = adminFlowService;
-    }
 
     @Value("${bot.token}")
     private String token;
