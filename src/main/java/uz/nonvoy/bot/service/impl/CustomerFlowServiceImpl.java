@@ -63,6 +63,9 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
             case IDLE -> handleIdle(update, user, chatId);
             case WAITING_QUANTITY -> handleWaitingQuantity(update, user, chatId);
             case CONFIRMING -> handleConfirming(chatId);
+            // Savat qadamlari keyingi bo'lakda yoziladi; hozircha bu state'larga
+            // hech qaysi yo'l olib bormaydi, shuning uchun bo'sh qolmasin uchun /start
+            case WAITING_PRODUCT, CART_REVIEW, WAITING_RECEIPT, FINAL_CONFIRM -> handleNew(chatId);
         };
     }
 
