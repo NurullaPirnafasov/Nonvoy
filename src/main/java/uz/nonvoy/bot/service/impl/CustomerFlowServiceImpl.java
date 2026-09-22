@@ -23,6 +23,7 @@ import uz.nonvoy.bot.service.CustomerFlowService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
+import uz.nonvoy.bot.util.CardAudience;
 import uz.nonvoy.bot.util.OrderCardFormatter;
 import uz.nonvoy.bot.util.PriceFormatter;
 
@@ -216,8 +217,8 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private SendMessage adminCard(Order order) {
         return SendMessage.builder()
                 .chatId(adminGroupId)
-                .text(OrderCardFormatter.card(order, orderService.findItems(order)))
-                .replyMarkup(OrderCardFormatter.keyboard(order))
+                .text(OrderCardFormatter.card(order, orderService.findItems(order), CardAudience.PAYMENT))
+                .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.PAYMENT))
                 .build();
     }
 

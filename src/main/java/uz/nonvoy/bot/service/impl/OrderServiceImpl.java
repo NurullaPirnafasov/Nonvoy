@@ -11,6 +11,7 @@ import uz.nonvoy.bot.entity.enums.OrderStatus;
 import uz.nonvoy.bot.repository.OrderItemRepository;
 import uz.nonvoy.bot.repository.OrderRepository;
 import uz.nonvoy.bot.service.OrderService;
+import uz.nonvoy.bot.service.StatusChange;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
 
@@ -29,7 +30,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Transactional
     @Override
-    public Order changeStatus(Long orderId, OrderStatus newStatus) {
+    public StatusChange changeStatus(Long orderId, OrderStatus newStatus) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalStateException("Buyurtma #" + orderId + " topilmadi"));
 
@@ -42,8 +43,9 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException(order.getStatus() + "->" + newStatus + " o'tish ruxsat etilmagan");
         }
 
+        OrderStatus previous = order.getStatus();
         order.setStatus(newStatus);
-        return orderRepository.save(order);
+        return new StatusChange(orderRepository.save(order), previous);
     }
 
     @Override

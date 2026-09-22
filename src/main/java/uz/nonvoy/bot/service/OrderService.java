@@ -19,7 +19,7 @@ public interface OrderService {
      *
      * @throws IllegalStateException ruxsat etilmagan o'tishda
      */
-    Order changeStatus(Long orderId, OrderStatus newStatus);
+    StatusChange changeStatus(Long orderId, OrderStatus newStatus);
 
     Order createOrder(User user);
 

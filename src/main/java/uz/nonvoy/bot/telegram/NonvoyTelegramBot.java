@@ -36,6 +36,9 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
     @Value("${bot.admin-group-id}")
     private Long adminGroupId;
 
+    @Value("${bot.worker-group-id}")
+    private Long workerGroupId;
+
     @Override
     public String getBotUsername() {
         return username;
@@ -105,7 +108,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         if (message.getChat().isUserChat()) {
             return customerFlowService.handleMessage(update);
         }
-        if (adminGroupId.equals(message.getChatId())) {
+        if (isGroupChat(message.getChatId())) {
             return adminFlowService.handleMessage(update);
         }
         return List.of();
@@ -127,7 +130,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         if (message.getChat().isUserChat()) {
             return customerFlowService.handleCallback(update);
         }
-        if (adminGroupId.equals(message.getChatId())) {
+        if (isGroupChat(message.getChatId())) {
             return adminFlowService.handleCallback(update);
         }
         return List.of();
@@ -142,7 +145,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
             message = m;
         }
         // Begona guruhda gapirmaymiz - u yerda bot umuman javob bermasligi kerak
-        if (message == null || !(message.getChat().isUserChat() || adminGroupId.equals(message.getChatId()))) {
+        if (message == null || !(message.getChat().isUserChat() || isGroupChat(message.getChatId()))) {
             return;
         }
         Long chatId = message.getChatId();
@@ -162,6 +165,11 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
      * state o'zi tekshiradi va "hozir nima kerakligi"ni eslatadi.
      * Bot xabarlari va from'siz service update'lar (kanal post, guruhga qo'shilish) tashlanadi.
      */
+    /** Kassa va ishchilar guruhlari — ikkalasi ham AdminFlowService'ga boradi, u yerda ajratiladi. */
+    private boolean isGroupChat(Long chatId) {
+        return adminGroupId.equals(chatId) || workerGroupId.equals(chatId);
+    }
+
     private boolean isHandledMessage(Update update) {
         if (!update.hasMessage() || update.getMessage().getFrom() == null) {
             return false;
