@@ -31,7 +31,7 @@ public final class OrderCardFormatter {
 
         for (OrderItem item : items) {
             sb.append("🍞 ")
-                    .append(item.getProduct().getName())
+                    .append(itemName(item))
                     .append(" × ")
                     .append(item.getQuantity());
             if (audience == CardAudience.PAYMENT) {
@@ -109,6 +109,18 @@ public final class OrderCardFormatter {
     private static String normalizePhone(String phone) {
         String trimmed = phone.trim();
         return trimmed.startsWith("+") ? trimmed : "+" + trimmed;
+    }
+
+    /**
+     * Nom buyurtma paytida muzlatiladi. Eski qatorlarda (snapshot kiritilgunga qadar)
+     * u yo'q, shuning uchun mahsulotning o'zi zaxira sifatida qoladi.
+     */
+    private static String itemName(OrderItem item) {
+        String frozen = item.getProductNameAtOrder();
+        if (frozen != null && !frozen.isBlank()) {
+            return frozen;
+        }
+        return item.getProduct() == null ? "Mahsulot" : item.getProduct().getName();
     }
 
     private static BigDecimal lineTotal(OrderItem item) {

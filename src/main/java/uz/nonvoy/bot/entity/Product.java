@@ -17,5 +17,4 @@ public class Product extends Auditable {
     @Column(unique = true)
     private String name;
     private BigDecimal price;
-    private boolean available;
 }

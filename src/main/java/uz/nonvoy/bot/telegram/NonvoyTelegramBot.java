@@ -8,9 +8,13 @@ import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.PartialBotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
+import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeChat;
+import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -49,9 +53,27 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         return token;
     }
 
+    /**
+     * Buyruqlarni Telegram menyusida ko'rsatadi: novvoy "/mahsulotlar"ni qo'lda yozmasin,
+     * menyudan bosib ochsin. Kassa buyrug'i faqat o'sha guruh scope'ida — mijozlar
+     * ro'yxatida ko'rinmaydi.
+     */
     @Override
     public void onRegister() {
         super.onRegister();
+        try {
+            execute(SetMyCommands.builder()
+                    .command(new BotCommand("start", "Botni boshlash"))
+                    .scope(new BotCommandScopeDefault())
+                    .build());
+            execute(SetMyCommands.builder()
+                    .command(new BotCommand("mahsulotlar", "Mahsulotlarni boshqarish"))
+                    .scope(new BotCommandScopeChat(String.valueOf(adminGroupId)))
+                    .build());
+        } catch (TelegramApiException e) {
+            // Buyruq menyusi bo'lmasa ham bot ishlayveradi
+            log.error("Buyruqlar ro'yxati o'rnatilmadi", e);
+        }
     }
 
     @Override

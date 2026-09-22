@@ -82,6 +82,7 @@ public class OrderServiceImpl implements OrderService {
                         .order(order)
                         .product(cartItem.getProduct())
                         .quantity(cartItem.getQuantity())
+                        .productNameAtOrder(cartItem.getProduct().getName())
                         .priceAtOrder(cartItem.getProduct().getPrice())
                         .build())
                 .toList());

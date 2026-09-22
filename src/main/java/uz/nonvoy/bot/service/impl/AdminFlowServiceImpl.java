@@ -14,18 +14,15 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import uz.nonvoy.bot.entity.Order;
-import uz.nonvoy.bot.entity.Product;
 import uz.nonvoy.bot.entity.enums.OrderStatus;
 import uz.nonvoy.bot.service.AdminFlowService;
 import uz.nonvoy.bot.service.OrderService;
-import uz.nonvoy.bot.service.ProductService;
+import uz.nonvoy.bot.service.ProductAdminService;
 import uz.nonvoy.bot.service.StatusChange;
 import uz.nonvoy.bot.telegram.OrderAction;
 import uz.nonvoy.bot.util.CardAudience;
 import uz.nonvoy.bot.util.OrderCardFormatter;
-import uz.nonvoy.bot.util.PriceFormatter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +38,7 @@ import java.util.Optional;
 public class AdminFlowServiceImpl implements AdminFlowService {
 
     private final OrderService orderService;
-    private final ProductService productService;
+    private final ProductAdminService productAdminService;
 
     @Value("${bot.admin-group-id}")
     private Long paymentGroupId;
@@ -50,23 +47,22 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     private Long workerGroupId;
 
     private static final String PRODUCTS_COMMAND = "/mahsulotlar";
-    private static final String PRODUCT_TOGGLE_PREFIX = "PRODUCT:";
-    private static final String PRODUCTS_TITLE = "🍞 Mahsulotlar\n\nHolatni o'zgartirish uchun tugmani bosing:";
 
     @Override
     public List<PartialBotApiMethod<?>> handleMessage(Update update) {
         Message message = update.getMessage();
-        if (message == null || !message.hasText()) {
-            // Guruhda har xabarga javob berish shovqin — faqat buyruqlarga javob beramiz
+        // Mahsulot boshqaruvi — pul masalasi, shuning uchun faqat kassada (12-qaror)
+        if (message == null || !paymentGroupId.equals(message.getChatId())) {
             return List.of();
         }
-        // Mahsulot boshqaruvi — pul masalasi, shuning uchun faqat kassada (12-qaror)
-        if (paymentGroupId.equals(message.getChatId()) && isProductsCommand(message.getText())) {
-            return List.of(SendMessage.builder()
-                    .chatId(message.getChatId())
-                    .text(PRODUCTS_TITLE)
-                    .replyMarkup(productsKeyboard())
-                    .build());
+        // Privacy mode tufayli bot guruhda faqat buyruqlarni va o'z xabariga qilingan
+        // reply'larni ko'radi — shuning uchun boshqa shovqin bu yergacha yetib kelmaydi (18-qaror)
+        Optional<List<PartialBotApiMethod<?>>> reply = productAdminService.handleReply(message);
+        if (reply.isPresent()) {
+            return reply.get();
+        }
+        if (message.hasText() && isProductsCommand(message.getText())) {
+            return productAdminService.openList(message.getChatId());
         }
         return List.of();
     }
@@ -77,11 +73,11 @@ public class AdminFlowServiceImpl implements AdminFlowService {
         String data = callbackQuery.getData();
         Long chatId = callbackQuery.getMessage().getChatId();
 
-        if (data != null && data.startsWith(PRODUCT_TOGGLE_PREFIX)) {
+        if (productAdminService.handlesCallback(data)) {
             if (!paymentGroupId.equals(chatId)) {
                 return List.of(answer(callbackQuery, "Bu tugma bu guruhda ishlamaydi"));
             }
-            return handleProductToggle(callbackQuery, data);
+            return productAdminService.handleCallback(callbackQuery);
         }
         return handleOrderAction(callbackQuery, data, chatId);
     }
@@ -192,46 +188,6 @@ public class AdminFlowServiceImpl implements AdminFlowService {
             case PAYMENT -> action == OrderAction.ACCEPT || action == OrderAction.CANCEL;
             case KITCHEN -> action == OrderAction.READY;
         };
-    }
-
-    private List<PartialBotApiMethod<?>> handleProductToggle(CallbackQuery callbackQuery, String data) {
-        long productId;
-        try {
-            productId = Long.parseLong(data.substring(PRODUCT_TOGGLE_PREFIX.length()));
-        } catch (NumberFormatException e) {
-            return List.of(answer(callbackQuery, "Noma'lum tugma"));
-        }
-
-        Optional<Product> toggled = productService.toggleAvailability(productId);
-        if (toggled.isEmpty()) {
-            return List.of(answer(callbackQuery, "Mahsulot topilmadi"));
-        }
-
-        Product product = toggled.get();
-        List<PartialBotApiMethod<?>> result = new ArrayList<>();
-        result.add(answer(callbackQuery, product.getName() + (product.isAvailable() ? " — bor" : " — tugadi")));
-        // Sarlavha o'zgarmaydi, faqat tugmalar — shuning uchun EditMessageText emas
-        // (bir xil matn bilan tahrirlash Telegram'da xato beradi)
-        result.add(EditMessageReplyMarkup.builder()
-                .chatId(callbackQuery.getMessage().getChatId())
-                .messageId(callbackQuery.getMessage().getMessageId())
-                .replyMarkup(productsKeyboard())
-                .build());
-        return result;
-    }
-
-    private InlineKeyboardMarkup productsKeyboard() {
-        InlineKeyboardMarkup.InlineKeyboardMarkupBuilder builder = InlineKeyboardMarkup.builder();
-        for (Product product : productService.findAll()) {
-            String label = product.getName()
-                    + " — " + PriceFormatter.formatPrice(product.getPrice()) + " so'm"
-                    + (product.isAvailable() ? " ✅ bor" : " ❌ tugadi");
-            builder.keyboardRow(List.of(InlineKeyboardButton.builder()
-                    .text(label)
-                    .callbackData(PRODUCT_TOGGLE_PREFIX + product.getId())
-                    .build()));
-        }
-        return builder.build();
     }
 
     /** Matn farqi eski statusdan chiqadi — alohida REJECTED status kerak emas (11-qaror). */
