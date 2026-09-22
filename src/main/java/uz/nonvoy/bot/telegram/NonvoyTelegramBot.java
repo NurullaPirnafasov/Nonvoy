@@ -57,10 +57,12 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
      * Buyruqlarni Telegram menyusida ko'rsatadi: novvoy "/mahsulotlar"ni qo'lda yozmasin,
      * menyudan bosib ochsin. Kassa buyrug'i faqat o'sha guruh scope'ida — mijozlar
      * ro'yxatida ko'rinmaydi.
+     * <p>
+     * Ro'yxatdan o'tish muvaffaqiyatli bo'lgandan keyin chaqiriladi, {@code onRegister}
+     * ichida emas: u ro'yxatdan o'tishdan OLDIN ishlaydi, ya'ni tarmoq yo'qligida har bir
+     * urinish ikkita ortiqcha timeout va ikkita chalg'ituvchi xato beradi.
      */
-    @Override
-    public void onRegister() {
-        super.onRegister();
+    public void registerCommands() {
         try {
             execute(SetMyCommands.builder()
                     .command(new BotCommand("start", "Botni boshlash"))

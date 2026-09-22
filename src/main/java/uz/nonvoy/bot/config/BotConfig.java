@@ -59,6 +59,7 @@ public class BotConfig {
             try {
                 api.registerBot(nonvoyTelegramBot);
                 log.info("Bot Telegram'da ro'yxatdan o'tdi ({}-urinish)", attempt);
+                nonvoyTelegramBot.registerCommands();
                 return;
             } catch (TelegramApiException e) {
                 // Sabab matni logda qolsin: tarmoq timeout'i bilan noto'g'ri token
