@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.PartialBotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -61,7 +63,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
     }
 
     private void route(Update update) {
-        List<BotApiMethod<?>> methods;
+        List<PartialBotApiMethod<?>> methods;
         if (isHandledMessage(update)) {
             methods = routeMessage(update);
         } else if (update.hasCallbackQuery()) {
@@ -69,12 +71,27 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         } else return;
 
         if (methods == null || methods.isEmpty()) return;
-        for (BotApiMethod<?> method : methods) {
+        for (PartialBotApiMethod<?> method : methods) {
             try {
-                execute(method);
+                send(method);
             } catch (TelegramApiException e) {
                 log.error("Telegram API Exception", e);
             }
+        }
+    }
+
+    /**
+     * Chek rasmi bilan ishlash uchun service'lar {@link PartialBotApiMethod} qaytaradi:
+     * {@link SendPhoto} {@link BotApiMethod} emas (rasm multipart bilan ketadi), shuning
+     * uchun yagona {@code execute} overload'i yetmaydi va tur shu yerda ajratiladi.
+     */
+    private void send(PartialBotApiMethod<?> method) throws TelegramApiException {
+        if (method instanceof BotApiMethod<?> apiMethod) {
+            execute(apiMethod);
+        } else if (method instanceof SendPhoto photo) {
+            execute(photo);
+        } else {
+            log.error("Qo'llab-quvvatlanmaydigan metod turi: {}", method.getClass());
         }
     }
 
@@ -83,7 +100,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
      * degan mantiq bor edi: bot boshqa guruhga qo'shilsa yoki admin-group-id noto'g'ri
      * bo'lsa, o'sha guruhda buyurtma klaviaturasi paydo bo'lardi.
      */
-    private List<BotApiMethod<?>> routeMessage(Update update) {
+    private List<PartialBotApiMethod<?>> routeMessage(Update update) {
         Message message = update.getMessage();
         if (message.getChat().isUserChat()) {
             return customerFlowService.handleMessage(update);
@@ -94,7 +111,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         return List.of();
     }
 
-    private List<BotApiMethod<?>> routeCallback(Update update) {
+    private List<PartialBotApiMethod<?>> routeCallback(Update update) {
         CallbackQuery callbackQuery = update.getCallbackQuery();
         // 48 soatdan eski xabar uchun Telegram Message emas, InaccessibleMessage yuboradi:
         // chat ma'lumoti ham, matni ham yo'q, ya'ni kartani tahrirlab bo'lmaydi.

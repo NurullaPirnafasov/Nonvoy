@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.PartialBotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
@@ -47,7 +47,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private static final String CONFIRM_NO = "CONFIRM:NO";
 
     @Override
-    public List<BotApiMethod<?>> handleMessage(Update update) {
+    public List<PartialBotApiMethod<?>> handleMessage(Update update) {
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         String name = update.getMessage().getFrom().getFirstName();
@@ -70,7 +70,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     }
 
     @Override
-    public List<BotApiMethod<?>> handleCallback(Update update) {
+    public List<PartialBotApiMethod<?>> handleCallback(Update update) {
         CallbackQuery callbackQuery = update.getCallbackQuery();
         String id = callbackQuery.getId();
         String data = callbackQuery.getData();
@@ -79,7 +79,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         Long chatId = callbackQuery.getMessage().getChatId();
         Integer messageId = callbackQuery.getMessage().getMessageId();
         User user = userService.findOrCreate(telegramId, name);
-        List<BotApiMethod<?>> list = new ArrayList<>();
+        List<PartialBotApiMethod<?>> list = new ArrayList<>();
         if (user.getState() != UserState.CONFIRMING) {
             AnswerCallbackQuery answerCallbackQuery = AnswerCallbackQuery.builder()
                     .callbackQueryId(id)
@@ -134,11 +134,11 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         return list;
     }
 
-    private List<BotApiMethod<?>> handleConfirming(Long chatId) {
+    private List<PartialBotApiMethod<?>> handleConfirming(Long chatId) {
         return reply(chatId, "Buyurtmani tasdiqlash uchun yuqoridagi Ha yoki Yo'qni bosing.\nBekor qilish uchun /start yuboring");
     }
 
-    private List<BotApiMethod<?>> handleWaitingQuantity(Update update, User user, Long chatId) {
+    private List<PartialBotApiMethod<?>> handleWaitingQuantity(Update update, User user, Long chatId) {
         if (!update.getMessage().hasText()) {
             return reply(chatId, "Nechta non kerakligini raqam bilan yozing.\nBekor qilish uchun /start yuboring");
         }
@@ -163,7 +163,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                 confirmKeyboard());
     }
 
-    private List<BotApiMethod<?>> handleIdle(Update update, User user, Long chatId) {
+    private List<PartialBotApiMethod<?>> handleIdle(Update update, User user, Long chatId) {
         if (update.getMessage().hasText() && update.getMessage().getText().equals(ORDER_BUTTON)) {
             if (productService.getActiveProduct().isPresent()) {
                 userService.updateState(user, UserState.WAITING_QUANTITY);
@@ -176,7 +176,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private List<BotApiMethod<?>> handleWaitingPhone(Update update, User user, Long chatId) {
+    private List<PartialBotApiMethod<?>> handleWaitingPhone(Update update, User user, Long chatId) {
         if (update.getMessage().hasContact()) {
             if (user.getTelegramId().equals(update.getMessage().getContact().getUserId())) {
                 userService.savePhone(user, update.getMessage().getContact().getPhoneNumber());
@@ -189,7 +189,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         }
     }
 
-    private List<BotApiMethod<?>> handleNew(Long chatId) {
+    private List<PartialBotApiMethod<?>> handleNew(Long chatId) {
         return reply(chatId, "/start buyrug'ini yuboring");
     }
 
@@ -197,7 +197,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
      * Ro'yxatdan o'tmaganni telefon so'rashga, o'tganni esa boshlang'ich holatga qaytaradi.
      * Yarim qolgan buyurtma qoralamasi (draftQuantity) tozalanadi.
      */
-    private List<BotApiMethod<?>> handleStart(User user, Long chatId) {
+    private List<PartialBotApiMethod<?>> handleStart(User user, Long chatId) {
         if (user.getPhone() == null || user.getPhone().isBlank()) {
             userService.updateState(user, UserState.WAITING_PHONE);
             return reply(chatId,
@@ -221,7 +221,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                 .build();
     }
 
-    private List<BotApiMethod<?>> reply(Long chatId, String text) {
+    private List<PartialBotApiMethod<?>> reply(Long chatId, String text) {
         return List.of(message(chatId, text));
     }
 
@@ -232,7 +232,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                 .build();
     }
 
-    private List<BotApiMethod<?>> reply(Long chatId, String text, ReplyKeyboard keyboard) {
+    private List<PartialBotApiMethod<?>> reply(Long chatId, String text, ReplyKeyboard keyboard) {
         return List.of(message(chatId, text, keyboard));
     }
 

@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.PartialBotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
@@ -43,7 +43,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     private static final String PRODUCTS_TITLE = "🍞 Mahsulotlar\n\nHolatni o'zgartirish uchun tugmani bosing:";
 
     @Override
-    public List<BotApiMethod<?>> handleMessage(Update update) {
+    public List<PartialBotApiMethod<?>> handleMessage(Update update) {
         Message message = update.getMessage();
         if (message == null || !message.hasText()) {
             // Guruhda har xabarga javob berish shovqin — faqat buyruqlarga javob beramiz
@@ -60,7 +60,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     }
 
     @Override
-    public List<BotApiMethod<?>> handleCallback(Update update) {
+    public List<PartialBotApiMethod<?>> handleCallback(Update update) {
         CallbackQuery callbackQuery = update.getCallbackQuery();
         String data = callbackQuery.getData();
 
@@ -70,7 +70,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
         return handleOrderAction(callbackQuery, data);
     }
 
-    private List<BotApiMethod<?>> handleOrderAction(CallbackQuery callbackQuery, String data) {
+    private List<PartialBotApiMethod<?>> handleOrderAction(CallbackQuery callbackQuery, String data) {
         Optional<OrderAction> action = OrderAction.parse(data);
         Optional<Long> orderId = OrderAction.parseOrderId(data);
         if (action.isEmpty() || orderId.isEmpty()) {
@@ -90,7 +90,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
             // Kartani qayta chizmaymiz — matn o'zgarmagani uchun Telegram baribir rad etardi;
             // o'rniga kartadagi tugmalarni haqiqiy holatga moslaymiz
             log.info("Ruxsatsiz status o'tishi: order={}, action={}", orderId.get(), action.get(), e);
-            List<BotApiMethod<?>> result = new ArrayList<>();
+            List<PartialBotApiMethod<?>> result = new ArrayList<>();
             result.add(answer(callbackQuery, alreadyHandledText(existing.get())));
             result.add(EditMessageReplyMarkup.builder()
                     .chatId(callbackQuery.getMessage().getChatId())
@@ -100,7 +100,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
             return result;
         }
 
-        List<BotApiMethod<?>> result = new ArrayList<>();
+        List<PartialBotApiMethod<?>> result = new ArrayList<>();
         result.add(answer(callbackQuery, null));
         result.add(EditMessageText.builder()
                 .chatId(callbackQuery.getMessage().getChatId())
@@ -115,7 +115,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
         return result;
     }
 
-    private List<BotApiMethod<?>> handleProductToggle(CallbackQuery callbackQuery, String data) {
+    private List<PartialBotApiMethod<?>> handleProductToggle(CallbackQuery callbackQuery, String data) {
         long productId;
         try {
             productId = Long.parseLong(data.substring(PRODUCT_TOGGLE_PREFIX.length()));
@@ -129,7 +129,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
         }
 
         Product product = toggled.get();
-        List<BotApiMethod<?>> result = new ArrayList<>();
+        List<PartialBotApiMethod<?>> result = new ArrayList<>();
         result.add(answer(callbackQuery, product.getName() + (product.isAvailable() ? " — bor" : " — tugadi")));
         // Sarlavha o'zgarmaydi, faqat tugmalar — shuning uchun EditMessageText emas
         // (bir xil matn bilan tahrirlash Telegram'da xato beradi)
