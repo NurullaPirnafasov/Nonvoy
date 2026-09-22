@@ -91,6 +91,23 @@ class OrderCardFormatterTest {
         assertTrue(OrderCardFormatter.card(order(OrderStatus.NEW), many, CardAudience.PAYMENT).length() < 1024);
     }
 
+    /**
+     * Mahsulot o'chirilsa OrderItem'dagi ishora null bo'ladi (23-qaror) — eski karta
+     * baribir to'liq chiqishi kerak, nom va narx unda muzlatilgan.
+     */
+    @Test
+    void deletedProductStillRendersFromSnapshot() {
+        OrderItem orphan = OrderItem.builder()
+                .quantity(10)
+                .productNameAtOrder("Shirmoy")
+                .priceAtOrder(BigDecimal.valueOf(5000))
+                .build();
+
+        String card = normalize(OrderCardFormatter.card(order(OrderStatus.READY), List.of(orphan), CardAudience.PAYMENT));
+
+        assertTrue(card.contains("🍞 Shirmoy × 10 — 50 000 so'm"), card);
+    }
+
     // --- Tugmalar ---
 
     @Test
