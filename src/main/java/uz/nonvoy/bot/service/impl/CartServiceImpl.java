@@ -27,7 +27,13 @@ public class CartServiceImpl implements CartService {
                         .product(product)
                         .quantity(0)
                         .build());
-        item.setQuantity(item.getQuantity() + quantity);
+        // Yuqori chegara yo'q, lekin int'ning o'z chegarasi bor: to'lib ketsa miqdor
+        // va summa jimgina manfiy bo'lib qolardi
+        try {
+            item.setQuantity(Math.addExact(item.getQuantity(), quantity));
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Miqdor juda katta", e);
+        }
         return cartItemRepository.save(item);
     }
 

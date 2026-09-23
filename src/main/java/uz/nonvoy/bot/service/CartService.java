@@ -12,6 +12,8 @@ public interface CartService {
     /**
      * Savatga qo'shadi. Mahsulot allaqachon savatda bo'lsa yangi qator ochilmaydi,
      * miqdor mavjudiga qo'shiladi (3-qaror).
+     *
+     * @throws IllegalArgumentException jami miqdor {@code int}ga sig'masa
      */
     CartItem add(User user, Product product, int quantity);
 

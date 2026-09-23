@@ -221,7 +221,12 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
             return startOrder(user, chatId);
         }
 
-        cartService.add(user, product, quantity);
+        try {
+            cartService.add(user, product, quantity);
+        } catch (IllegalArgumentException e) {
+            // Savatdagi miqdor bilan qo'shilganda to'lib ketdi — mijoz shu qadamda qoladi
+            return reply(chatId, "Miqdor juda katta, kichikroq son yozing." + CANCEL_HINT);
+        }
         userService.updateState(user, UserState.CART_REVIEW);
         return List.of(cartScreen(user, chatId));
     }

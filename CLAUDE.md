@@ -302,7 +302,7 @@ Vazifalar:
 - [x] `/buyurtmalar` ikkala guruhda, `setMyCommands` ishchilar guruhiga ham
 - [x] Mijozning qulf xabariga qo'shimcha qator
 - [x] Narxni summa aytilganda muzlatish (2-muammo): V2 migratsiya, `CartService.freeze`, `CartItem.displayName`/`unitPrice`
-- [ ] Miqdor overflow (3-muammo)
+- [x] Miqdor overflow (3-muammo): `Math.addExact`, "Yuqori chegara yo'q" qarori o'zgarmaydi — faqat `int`ning o'z chegarasi hurmat qilinadi, mijoz miqdor qadamida qoladi
 
 ### Parallel vazifa (kod emas)
 - [ ] Novvoy bilan gaplashish: non narxi, turlari, buyurtmalarni kim ko'radi, Telegram guruhga rozimi
