@@ -57,8 +57,8 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
 
     /**
      * Buyruqlarni Telegram menyusida ko'rsatadi: novvoy "/mahsulotlar"ni qo'lda yozmasin,
-     * menyudan bosib ochsin. Kassa buyrug'i faqat o'sha guruh scope'ida — mijozlar
-     * ro'yxatida ko'rinmaydi.
+     * menyudan bosib ochsin. Guruh buyruqlari faqat o'sha guruh scope'ida — mijozlar
+     * ro'yxatida ko'rinmaydi, ishchilar esa mahsulot boshqaruvini ko'rmaydi.
      * <p>
      * Ro'yxatdan o'tish muvaffaqiyatli bo'lgandan keyin chaqiriladi, {@code onRegister}
      * ichida emas: u ro'yxatdan o'tishdan OLDIN ishlaydi, ya'ni tarmoq yo'qligida har bir
@@ -70,9 +70,15 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
                     .command(new BotCommand("start", "Botni boshlash"))
                     .scope(new BotCommandScopeDefault())
                     .build());
+            BotCommand openOrders = new BotCommand("buyurtmalar", "Ochiq buyurtmalar kartalarini qayta chiqarish");
             execute(SetMyCommands.builder()
+                    .command(openOrders)
                     .command(new BotCommand("mahsulotlar", "Mahsulotlarni boshqarish"))
                     .scope(new BotCommandScopeChat(String.valueOf(adminGroupId)))
+                    .build());
+            execute(SetMyCommands.builder()
+                    .command(openOrders)
+                    .scope(new BotCommandScopeChat(String.valueOf(workerGroupId)))
                     .build());
         } catch (TelegramApiException e) {
             // Buyruq menyusi bo'lmasa ham bot ishlayveradi

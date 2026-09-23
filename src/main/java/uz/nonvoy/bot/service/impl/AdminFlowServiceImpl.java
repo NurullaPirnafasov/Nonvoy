@@ -17,6 +17,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import uz.nonvoy.bot.entity.Order;
 import uz.nonvoy.bot.entity.enums.OrderStatus;
 import uz.nonvoy.bot.service.AdminFlowService;
+import uz.nonvoy.bot.service.OrderCardService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductAdminService;
 import uz.nonvoy.bot.service.StatusChange;
@@ -39,6 +40,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
 
     private final OrderService orderService;
     private final ProductAdminService productAdminService;
+    private final OrderCardService orderCardService;
 
     @Value("${bot.admin-group-id}")
     private Long paymentGroupId;
@@ -47,12 +49,21 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     private Long workerGroupId;
 
     private static final String PRODUCTS_COMMAND = "/mahsulotlar";
+    private static final String ORDERS_COMMAND = "/buyurtmalar";
 
     @Override
     public List<PartialBotApiMethod<?>> handleMessage(Update update) {
         Message message = update.getMessage();
+        if (message == null) {
+            return List.of();
+        }
+        // Ochiq kartalar ikkala guruhda: har guruh faqat o'zinikini oladi
+        if (message.hasText() && isCommand(message.getText(), ORDERS_COMMAND)) {
+            CardAudience audience = audienceOf(message.getChatId());
+            return audience == null ? List.of() : orderCardService.openCards(audience);
+        }
         // Mahsulot boshqaruvi — pul masalasi, shuning uchun faqat kassada (12-qaror)
-        if (message == null || !paymentGroupId.equals(message.getChatId())) {
+        if (!paymentGroupId.equals(message.getChatId())) {
             return List.of();
         }
         // Privacy mode tufayli bot guruhda faqat buyruqlarni va o'z xabariga qilingan
@@ -61,7 +72,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
         if (reply.isPresent()) {
             return reply.get();
         }
-        if (message.hasText() && isProductsCommand(message.getText())) {
+        if (message.hasText() && isCommand(message.getText(), PRODUCTS_COMMAND)) {
             return productAdminService.openList(message.getChatId());
         }
         return List.of();
@@ -157,11 +168,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     private List<PartialBotApiMethod<?>> notifyWorkers(StatusChange change) {
         Order order = change.order();
         if (change.from() == OrderStatus.NEW && order.getStatus() == OrderStatus.ACCEPTED) {
-            return List.of(SendMessage.builder()
-                    .chatId(workerGroupId)
-                    .text(OrderCardFormatter.card(order, orderService.findItems(order), CardAudience.KITCHEN))
-                    .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.KITCHEN))
-                    .build());
+            return List.of(orderCardService.kitchenCard(order));
         }
         // Non allaqachon tandirda bo'lishi mumkin — ishchilar buni bilishi shart (12-qaror)
         if (change.from() == OrderStatus.ACCEPTED && order.getStatus() == OrderStatus.CANCELLED) {
@@ -221,12 +228,12 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     }
 
     /** Guruhda buyruq "/mahsulotlar@bot_username" ko'rinishida ham keladi. */
-    private boolean isProductsCommand(String text) {
+    private boolean isCommand(String text, String expected) {
         String command = text.trim().split("\\s+")[0];
         int at = command.indexOf('@');
         if (at > 0) {
             command = command.substring(0, at);
         }
-        return PRODUCTS_COMMAND.equals(command);
+        return expected.equals(command);
     }
 }

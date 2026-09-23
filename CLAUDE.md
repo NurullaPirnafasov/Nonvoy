@@ -94,6 +94,7 @@ Alohida panel YO'Q. Buyurtmalar **ikkita Telegram guruhga** (kanal emas — tugm
 Tugma bosilganda status o'zgaradi va mijozga xabar ketadi. Qabul qilish va bekor qilish — faqat kassa; ishchilar faqat "Tayyor" bosadi.
 
 Admin buyruq: `/mahsulotlar` — mahsulotlarni inline tugmalar orqali boshqarish (kassa guruhida). Batafsil: "6-bosqich".
+`/buyurtmalar` — ikkala guruhda, o'sha guruhning ochiq kartalarini qayta chiqaradi. Batafsil: "7-bosqich".
 
 ## Reja (kuniga 3-4 soat, jami ~2-2.5 hafta)
 
@@ -279,6 +280,28 @@ Vazifalar:
 - [x] `setMyCommands` (kassa guruhi scope)
 - [x] Testlar: quyruq parse, nom+narx parse, o'chirish eski buyurtma kartasini buzmasligi, validatsiya chegaralari
 
+### 7-bosqich: Deploy oldidan tuzatishlar
+
+Kod review'da real ishlatishda chiqadigan uchta muammo topildi. Branch: `feature/pre-deploy-fixes`.
+
+1. **Kassaga karta yetmasa mijoz abadiy qulflanadi.** Buyurtma `NEW` bo'lib yoziladi, kassaga `SendPhoto` esa tarmoq xatosida faqat logga tushardi. Kassa buyurtmani ko'rmaydi, mijoz esa "bitta tekshirilmagan buyurtma" qulfi tufayli yangisini ham bera olmaydi. `NEW→ACCEPTED`da ishchilar kartasi yo'qolsa ham xuddi shunday.
+2. **Chek yuborilgach narx o'zgarsa yoki mahsulot o'chirilsa**, buyurtma summasi mijoz o'tkazgan summadan farq qiladi, savat bo'shab qolsa buyurtma umuman yaratilmaydi.
+3. **Miqdor `int` to'lib ketadi** — bir mahsulot ikki marta ~2 mlrd qo'shilsa miqdor va summa manfiy.
+
+Qarorlar va sabablari:
+
+30. **Qayta urinish bot qatlamida, faqat tarmoq xatosida** (1 s, 3 s) va 30 s gacha bo'lgan `429`da. Qaror `SendRetryPolicy`da — sof funksiya. Boshqa API xatolari (`chat not found`, `message is not modified`) qayta urinish bilan tuzalmaydi. Update'lar bitta oqimda ishlangani uchun kutish hammani kutdiradi — shuning uchun urinishlar soni va `retry_after` chegaralangan. Timeout'da so'rov aslida yetgan bo'lishi mumkin, ya'ni takroriy karta chiqadi — bu xavfsiz (31-qaror).
+31. **`/buyurtmalar` — ochiq kartalarni qayta chiqarish**, har guruh o'zinikini: kassada `NEW` + `ACCEPTED` (chek bilan), ishchilarda `ACCEPTED`. Service yuborish natijasini ko'rmaydi (15-qaror), shuning uchun "yetmadi"ni avtomatik aniqlash o'rniga guruh o'zi so'raydi; mijozning qulf xabarida "uzoq cho'zilsa, novvoyxonaga ayting" qatori bor. Takroriy karta xavfsiz: ikkinchi bosish validatsiyadan o'tmaydi va karta o'zini tuzatadi. Kartalar faqat so'ralganda chiqadi — ishchilarga kutilmagan takroriy karta tushib, non ikki marta yopilmaydi. Rad etilgan variantlar: qulfni vaqt bilan ochish (yo'qolgan buyurtmani yashiradi, mijoz ikkinchi marta to'laydi) va outbox + scheduler (`messageId` saqlash kerak — 15, 28-qarorlarni buzadi).
+32. **`/buyurtmalar` limiti 20 ta** — Telegram guruhga daqiqasiga ~20 xabar ruxsat beradi. Kassada `NEW` oldin: ko'p `ACCEPTED` yangi to'lovlarni limitdan siqib chiqarmasin. Qolganlar uchun "yana N ta bor" qatori.
+33. **Karta yasash `OrderCardService`da.** Kassa kartasi endi ikki joyda yasaladi (buyurtma yaratilganda va `/buyurtmalar`da), ishchilar kartasi ham — takrorlanmasin.
+
+Vazifalar:
+- [x] `SendRetryPolicy` + `NonvoyTelegramBot.sendWithRetry`
+- [x] `OrderCardService`: `paymentCard`, `kitchenCard`, `openCards`
+- [x] `/buyurtmalar` ikkala guruhda, `setMyCommands` ishchilar guruhiga ham
+- [x] Mijozning qulf xabariga qo'shimcha qator
+- [ ] Narxni summa aytilganda muzlatish (2-muammo)
+- [ ] Miqdor overflow (3-muammo)
 
 ### Parallel vazifa (kod emas)
 - [ ] Novvoy bilan gaplashish: non narxi, turlari, buyurtmalarni kim ko'radi, Telegram guruhga rozimi

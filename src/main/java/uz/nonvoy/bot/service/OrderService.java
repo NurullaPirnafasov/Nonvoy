@@ -36,5 +36,10 @@ public interface OrderService {
 
     Optional<Order> findById(Long orderId);
 
+    /** Berilgan statusdagi eng eski buyurtmalar, ko'pi bilan {@code limit} ta. */
+    List<Order> findOldest(OrderStatus status, int limit);
+
+    long countByStatus(OrderStatus status);
+
     List<OrderItem> findItems(Order order);
 }

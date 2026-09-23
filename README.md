@@ -124,6 +124,12 @@ Bekor qilish faqat kassada: pul kassada olingan, shuning uchun pulga bog'liq qar
 joyda turadi. Kassa `ACCEPTED`ni bekor qilsa ishchilarga alohida "yopmang" xabari ketadi —
 aks holda non allaqachon tandirda bo'ladi.
 
+Karta guruhga yetib bormasa (tarmoq uzilishi, bot guruhdan chiqarilgan) buyurtma
+yo'qolmaydi: har ikki guruhda `/buyurtmalar` o'sha guruhning ochiq kartalarini qayta
+chiqaradi — kassada `NEW` va `ACCEPTED`, ishchilarda `ACCEPTED`. Takroriy karta xavfsiz:
+ikkala karta bitta buyurtmaga ishora qiladi, ikkinchi bosish status validatsiyasidan o'tmaydi.
+Vaqtincha uzilishlar uchun bot tarmoq xatosida so'rovni o'zi qayta yuboradi.
+
 ## Mahsulot boshqaruvi
 
 Kassa guruhida `/mahsulotlar` (Telegram buyruq menyusida ham turadi):

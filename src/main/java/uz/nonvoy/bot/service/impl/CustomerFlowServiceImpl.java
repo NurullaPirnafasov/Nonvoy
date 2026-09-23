@@ -27,12 +27,11 @@ import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.UserState;
 import uz.nonvoy.bot.service.CartService;
 import uz.nonvoy.bot.service.CustomerFlowService;
+import uz.nonvoy.bot.service.OrderCardService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
-import uz.nonvoy.bot.util.CardAudience;
 import uz.nonvoy.bot.util.CartFormatter;
-import uz.nonvoy.bot.util.OrderCardFormatter;
 import uz.nonvoy.bot.util.PriceFormatter;
 
 import java.math.BigDecimal;
@@ -55,9 +54,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private final ProductService productService;
     private final OrderService orderService;
     private final CartService cartService;
-
-    @Value("${bot.admin-group-id}")
-    private Long paymentGroupId;
+    private final OrderCardService orderCardService;
 
     @Value("${bot.payment-card}")
     private String paymentCard;
@@ -171,7 +168,8 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         if (pending.isPresent()) {
             return reply(chatId,
                     "Oldingi buyurtmangiz #" + pending.get().getId() + " to'lov tekshiruvida ⏳\n"
-                            + "Tasdiqlangach yangi buyurtma bera olasiz",
+                            + "Tasdiqlangach yangi buyurtma bera olasiz\n"
+                            + "Uzoq cho'zilsa, novvoyxonaga ayting",
                     orderKeyboard());
         }
 
@@ -324,7 +322,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         result.add(message(chatId,
                 "Buyurtmangiz #" + order.getId() + " qabul qilindi. To'lov tekshirilmoqda ⏳",
                 orderKeyboard()));
-        result.add(paymentGroupCard(order));
+        result.add(orderCardService.paymentCard(order));
         return result;
     }
 
@@ -352,16 +350,6 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                                 button("✅ Tasdiqlash", FINAL_OK),
                                 button("❌ Bekor", FINAL_CANCEL)))
                         .build())
-                .build();
-    }
-
-    /** Kassa kartasi chek rasmi bilan tushadi, shuning uchun SendPhoto (13-qaror). */
-    private SendPhoto paymentGroupCard(Order order) {
-        return SendPhoto.builder()
-                .chatId(String.valueOf(paymentGroupId))
-                .photo(new InputFile(order.getReceiptFileId()))
-                .caption(OrderCardFormatter.card(order, orderService.findItems(order), CardAudience.PAYMENT))
-                .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.PAYMENT))
                 .build();
     }
 

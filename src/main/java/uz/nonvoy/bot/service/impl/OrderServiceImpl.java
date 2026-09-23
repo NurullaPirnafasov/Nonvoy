@@ -1,6 +1,7 @@
 package uz.nonvoy.bot.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.nonvoy.bot.entity.CartItem;
@@ -55,6 +56,19 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Optional<Order> findById(Long orderId) {
         return orderRepository.findById(orderId);
+    }
+
+    @Override
+    public List<Order> findOldest(OrderStatus status, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return orderRepository.findByStatusOrderByIdAsc(status, Limit.of(limit));
+    }
+
+    @Override
+    public long countByStatus(OrderStatus status) {
+        return orderRepository.countByStatus(status);
     }
 
     @Override
