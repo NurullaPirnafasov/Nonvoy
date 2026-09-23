@@ -18,3 +18,6 @@ bot:
   # kartaga ketmasin — dastur ishga tushmay qo'ya qolsin
   payment-card: ${PAYMENT_CARD}
   payment-card-holder: ${PAYMENT_CARD_HOLDER}
+  # Server qaysi mintaqada turishidan qat'i nazar vaqt Toshkent bo'yicha. Kartadan farqli,
+  # bu yerda to'g'ri default bor — serverda TZ qo'yish esdan chiqsa ham xato bo'lmasin
+  time-zone: ${TIME_ZONE:Asia/Tashkent}
