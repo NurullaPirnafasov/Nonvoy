@@ -118,7 +118,8 @@ public class AdminFlowServiceImpl implements AdminFlowService {
             // Ikki marta bosish yoki eskirgan karta (15-qaror) shu yerga tushadi.
             // Kartani qayta chizmaymiz — matn o'zgarmagani uchun Telegram baribir rad etardi;
             // o'rniga kartadagi tugmalarni haqiqiy holatga moslaymiz
-            log.info("Ruxsatsiz status o'tishi: order={}, action={}", orderId.get(), action.get(), e);
+            // Kutilgan holat, xato emas — stack trace kerak emas, u faqat chalg'itadi
+            log.info("Eskirgan tugma rad etildi: order={}, action={}: {}", orderId.get(), action.get(), e.getMessage());
             List<PartialBotApiMethod<?>> result = new ArrayList<>();
             result.add(answer(callbackQuery, alreadyHandledText(existing.get())));
             result.add(EditMessageReplyMarkup.builder()
