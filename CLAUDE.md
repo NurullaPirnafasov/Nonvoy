@@ -311,6 +311,10 @@ Real testda chiqqan (branch `fix/stale-cancel-button`): ishchilar `Tayyor` bosga
 - [x] Eskirgan tugma logi stack trace'siz
 - [x] `OrderAction` uch qismli callback (ikki qismlisi ham o'qiladi), `kitchenCard(order, paymentMessageId)`, `READY`da kassa kartasini qayta chizish
 
+36. **Vaqt mintaqasi kodda: `bot.time-zone` (`TIME_ZONE`, default `Asia/Tashkent`).** `createdAt`/`updatedAt` `LocalDateTime.now()` bilan to'ldiriladi, u JVM mintaqasini oladi — chet el VPS'i odatda UTC'da, vaqt 5 soat orqada yozilardi. Hozir vaqt hech qayerda ko'rsatilmaydi, lekin statistika qo'shilganda bazada aralash vaqtlar yig'ilib qolgan bo'lardi. `TimeZoneInitializer` kontekst yaratilishidan oldin (`ApplicationEnvironmentPreparedEvent`) va logging tinglovchisidan ham oldin ishlaydi — shunda bazada ham, loglarda ham vaqt bir xil. Nom `ZoneId.of` bilan tekshiriladi: `TimeZone.getTimeZone` xato nomda jimgina GMT qaytarardi. To'lov kartasidan farqli (4-bosqich, Flyway bandi) default bor, chunki bu yerda to'g'ri default mavjud va xato qiymat pulga tegmaydi. Rad etilgan: `Instant` + `timestamptz` (bitta mamlakatdagi bitta novvoyxona uchun 5 jadvallik migratsiya ortiqcha) va faqat serverda `TZ` qo'yish (esdan chiqadi, serverga bog'lanib qoladi).
+
+- [x] `TimeZoneInitializer` + `bot.time-zone`
+
 ### Parallel vazifa (kod emas)
 - [ ] Novvoy bilan gaplashish: non narxi, turlari, buyurtmalarni kim ko'radi, Telegram guruhga rozimi
 - [ ] To'lov kartasi raqami va egasining ismi (bot chek so'raganda ko'rsatadi)

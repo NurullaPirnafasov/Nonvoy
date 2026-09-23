@@ -184,6 +184,7 @@ Kerak: JDK 21, PostgreSQL, [@BotFather](https://t.me/BotFather)dan olingan bot t
    | `PAYMENT_CARD` | to'lov kartasi raqami (majburiy, default yo'q) |
    | `PAYMENT_CARD_HOLDER` | karta egasining ismi (majburiy, default yo'q) |
    | `DB_URL` | ixtiyoriy, default `jdbc:postgresql://localhost:5432/nonvoy` |
+   | `TIME_ZONE` | ixtiyoriy, default `Asia/Tashkent` — server qaysi mintaqada bo'lishidan qat'i nazar |
    | `DB_USERNAME` | ixtiyoriy, default `postgres` |
    | `DB_PASSWORD` | ixtiyoriy, default `postgres` |
 
