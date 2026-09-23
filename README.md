@@ -46,8 +46,10 @@ Bir nechta qaror alohida izohga arziydi:
 
 - **Savat alohida entity'da** — buyurtma faqat oxirgi tasdiqdan keyin yaratiladi, shunda bazada
   chala `Order` hech qachon qolmaydi va "yakunlanmagan" status kerak emas.
-- **`CartItem`da narx yo'q** — savatda joriy narx ko'rsatiladi, muzlatish esa `OrderItem`da.
-  Savat ochiq turganda narx o'zgarsa, mijoz ekranidagi son yangilanadi, bazaga nomuvofiqlik kirmaydi.
+- **Savatda narx summa aytilguncha joriy** — savat ochiq turganda narx o'zgarsa, mijoz
+  ekranidagi son yangilanadi. Mijozga to'lanadigan summa aytilgan paytda esa nom va narx
+  `CartItem`da muzlatiladi: mijoz aynan shu summani o'tkazadi, keyin narx o'zgarsa yoki
+  mahsulot o'chirilsa ham buyurtma o'tkazilgan summa bilan yaratiladi.
 - **`priceAtOrder` va `productNameAtOrder`** — buyurtma paytidagi narx va nom muzlatiladi.
   Mahsulot keyin qayta nomlansa yoki o'chirilsa ham eski buyurtma kartasi to'liq chiqadi.
 - **Buyurtma raqami sifatida `id`** — alohida `orderNumber` hisoblagichi yo'q. `id` unikal,

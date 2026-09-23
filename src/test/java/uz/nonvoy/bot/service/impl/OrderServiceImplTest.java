@@ -161,6 +161,44 @@ class OrderServiceImplTest {
         assertEquals(BigDecimal.valueOf(7000), saved.get(1).getPriceAtOrder());
     }
 
+    /**
+     * Mijoz summa aytilgan paytdagi narxni to'lagan (34-qaror): chek yuborilayotganda narx
+     * o'zgarsa ham buyurtma muzlatilgan narx bilan yaratiladi.
+     */
+    @Test
+    void orderUsesPriceFrozenAtCheckout() {
+        Product non = product("Non", 5000);
+        CartItem item = frozen(cartItem(non, 10));
+        non.setPrice(BigDecimal.valueOf(6000));
+        non.setName("Oq non");
+        User user = userWithReceipt();
+        cartContains(user, item);
+        when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+
+        orderService.createOrder(user);
+
+        OrderItem saved = captureSavedItems().get(0);
+        assertEquals(BigDecimal.valueOf(5000), saved.getPriceAtOrder());
+        assertEquals("Non", saved.getProductNameAtOrder());
+    }
+
+    /** Mahsulot o'chirilgan bo'lsa ham to'langan qator buyurtmaga kiradi. */
+    @Test
+    void frozenItemOfDeletedProductStillBecomesOrderItem() {
+        CartItem item = frozen(cartItem(product("Patir", 7000), 2));
+        item.setProduct(null);
+        User user = userWithReceipt();
+        cartContains(user, item);
+        when(orderRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+
+        orderService.createOrder(user);
+
+        OrderItem saved = captureSavedItems().get(0);
+        assertNull(saved.getProduct());
+        assertEquals("Patir", saved.getProductNameAtOrder());
+        assertEquals(BigDecimal.valueOf(7000), saved.getPriceAtOrder());
+    }
+
     /** Chek buyurtma bilan birga saqlanadi — kassa kartasi aynan shu rasm bilan chiqadi. */
     @Test
     void orderKeepsReceipt() {
@@ -239,6 +277,12 @@ class OrderServiceImplTest {
 
     private CartItem cartItem(Product product, int quantity) {
         return CartItem.builder().product(product).quantity(quantity).build();
+    }
+
+    private CartItem frozen(CartItem item) {
+        item.setNameAtCheckout(item.getProduct().getName());
+        item.setPriceAtCheckout(item.getProduct().getPrice());
+        return item;
     }
 
     private User user() {

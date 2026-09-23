@@ -94,15 +94,16 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmountMoney(cartService.calculateTotal(cartItems))
                 .build());
 
-        // Narx ham, miqdor ham shu daqiqada muzlatiladi: mahsulot narxi keyin
-        // o'zgarsa buyurtma tarixi buzilmasligi kerak
+        // Nom va narx savatda summa aytilgan paytda muzlatilgan (34-qaror) va shu yerga
+        // ko'chadi: mahsulot keyin o'zgarsa yoki o'chirilsa ham buyurtma tarixi buzilmaydi.
+        // Mahsulot o'chirilgan bo'lsa product null — nom va narx baribir saqlangan
         orderItemRepository.saveAll(cartItems.stream()
                 .map(cartItem -> OrderItem.builder()
                         .order(order)
                         .product(cartItem.getProduct())
                         .quantity(cartItem.getQuantity())
-                        .productNameAtOrder(cartItem.getProduct().getName())
-                        .priceAtOrder(cartItem.getProduct().getPrice())
+                        .productNameAtOrder(cartItem.displayName())
+                        .priceAtOrder(cartItem.unitPrice())
                         .build())
                 .toList());
 

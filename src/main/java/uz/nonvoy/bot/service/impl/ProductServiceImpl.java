@@ -66,7 +66,10 @@ public class ProductServiceImpl implements ProductService {
         }
         // Tartib muhim: FK'lar bo'shatilmaguncha qatorni o'chirib bo'lmaydi
         orderItemRepository.detachProduct(productId);
-        cartItemRepository.deleteByProductId(productId);
+        // Hali ko'rilayotgan savatdan mahsulot shunchaki tushib qoladi. Summasi aytilgan
+        // (muzlatilgan) qator esa qoladi: mijoz uni allaqachon to'lagan bo'lishi mumkin (34-qaror)
+        cartItemRepository.deleteUnfrozenByProductId(productId);
+        cartItemRepository.detachProduct(productId);
         productRepository.delete(product.get());
         return true;
     }

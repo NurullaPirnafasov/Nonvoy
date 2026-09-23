@@ -39,8 +39,23 @@ public class CartServiceImpl implements CartService {
     @Override
     public BigDecimal calculateTotal(List<CartItem> items) {
         return items.stream()
-                .map(item -> item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    @Transactional
+    @Override
+    public void freeze(User user) {
+        List<CartItem> items = cartItemRepository.findByUserIdOrderByIdAsc(user.getId());
+        for (CartItem item : items) {
+            // Qayta chaqirilsa va'da qilingan narx qayta yozilmasin
+            if (item.isFrozen()) {
+                continue;
+            }
+            item.setNameAtCheckout(item.getProduct().getName());
+            item.setPriceAtCheckout(item.getProduct().getPrice());
+        }
+        cartItemRepository.saveAll(items);
     }
 
     @Override

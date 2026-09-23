@@ -82,7 +82,9 @@ class ProductServiceImplTest {
 
         InOrder order = inOrder(orderItemRepository, cartItemRepository, productRepository);
         order.verify(orderItemRepository).detachProduct(1L);
-        order.verify(cartItemRepository).deleteByProductId(1L);
+        order.verify(cartItemRepository).deleteUnfrozenByProductId(1L);
+        // Summasi aytilgan qator o'chmaydi — mijoz uni to'lagan bo'lishi mumkin (34-qaror)
+        order.verify(cartItemRepository).detachProduct(1L);
         order.verify(productRepository).delete(product);
     }
 

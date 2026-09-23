@@ -17,8 +17,17 @@ public interface CartService {
 
     List<CartItem> findItems(User user);
 
-    /** Joriy narxlar bo'yicha hisoblanadi — savatda narx muzlatilmaydi (4-qaror). */
+    /**
+     * Summa aytilguncha joriy narxlardan (4-qaror), muzlatilgandan keyin muzlatilgan
+     * narxlardan hisoblanadi (34-qaror).
+     */
     BigDecimal calculateTotal(List<CartItem> items);
+
+    /**
+     * Mijozga to'lanadigan summa aytilishidan oldin chaqiriladi: nom va narx muzlatiladi,
+     * mijoz aynan shu summani o'tkazadi (34-qaror).
+     */
+    void freeze(User user);
 
     boolean isEmpty(User user);
 

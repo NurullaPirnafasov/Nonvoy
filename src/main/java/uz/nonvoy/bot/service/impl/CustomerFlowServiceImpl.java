@@ -249,9 +249,12 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                     result.add(message(chatId, "Savat bo'sh", orderKeyboard()));
                     return result;
                 }
+                // Shu daqiqadan summa va'da qilingan: mijoz aynan uni o'tkazadi, keyingi narx
+                // o'zgarishi yoki mahsulot o'chirilishi buyurtmaga ta'sir qilmasin (34-qaror)
+                cartService.freeze(user);
                 userService.updateState(user, UserState.WAITING_RECEIPT);
                 result.add(stripKeyboard(chatId, messageId, cartText(user)));
-                result.add(message(chatId, paymentInstruction(cartService.calculateTotal(items))));
+                result.add(message(chatId, paymentInstruction(cartService.calculateTotal(cartService.findItems(user)))));
             }
             case CART_CANCEL -> {
                 cartService.clear(user);

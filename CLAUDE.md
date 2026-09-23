@@ -28,7 +28,7 @@ Oddiy layered: `Bot handler → Service → Repository`. Mapper/Event/Integratio
 
 - **User** — telegramId, phone (contact orqali), name, role (CUSTOMER/ADMIN), state (bot flow qadami), `draftProductId` (miqdor so'ralayotgan mahsulot), `draftReceiptFileId` (chek rasmining Telegram file_id'si — buyurtma hali yaratilmagani uchun shu yerda kutadi)
 - **Product** — nomi, narxi. Yangi turlar (patir, shirmoy) qo'shilishi kutiladi. "Bugun bor/yo'q" holati YO'Q (22-qarorga qarang)
-- **CartItem** — user, product, quantity. Tugallanmagan buyurtma qoralamasi; `(user_id, product_id)` unique. Narx maydoni YO'Q (4-qarorga qarang)
+- **CartItem** — user, product, quantity. Tugallanmagan buyurtma qoralamasi; `(user_id, product_id)` unique. Savat ko'rilayotganda narx joriy (4-qaror), summa aytilganda `nameAtCheckout` / `priceAtCheckout`ga muzlatiladi (34-qaror)
 - **Order** — user, status, jami summa, chek rasmining file_id'si. Buyurtma raqami sifatida `Auditable.id` ishlatiladi (alohida `orderNumber` maydoni YO'Q — id unique, hisoblagich kerak emas; sequence'da uzilish bo'lishi mumkin, lekin novvoyxona uchun raqam shunchaki identifikator)
 - **OrderItem** — order, product, quantity, **priceAtOrder** (buyurtma paytidagi narx muzlatiladi — mahsulot narxi keyin o'zgarsa buyurtma tarixi buzilmasligi uchun). 6-bosqichda `productNameAtOrder` ham qo'shiladi (23-qaror)
 
@@ -177,7 +177,7 @@ Qarorlar va sabablari:
 1. **Savatcha alohida `CartItem` entity'da**, `Order`da emas. Sabab: buyurtma faqat oxirgi tasdiqdan keyin yaratiladi, shunda bazada chala `Order` hech qachon qolmaydi va yangi status kerak bo'lmaydi.
 2. **Chek yuborilmasa muammo yo'q** — buyurtma umuman yaratilmagan bo'ladi, faqat savat qoladi. Timeout yoki tozalovchi job kerak emas.
 3. **Bir xil mahsulot ikkinchi marta qo'shilsa miqdor qo'shiladi** (yangi qator emas). Baza darajasida `(user_id, product_id)` unique constraint bilan kafolatlanadi.
-4. **`CartItem`da narx maydoni yo'q** — savatda mahsulotning joriy narxi ko'rsatiladi, narx muzlatish esa `OrderItem.priceAtOrder`da. Natijada savat ochiq turganda narx o'zgarsa, mijoz ekranidagi son yangilanadi, bazaga nomuvofiqlik kirmaydi.
+4. **`CartItem`da narx maydoni yo'q** — savatda mahsulotning joriy narxi ko'rsatiladi, narx muzlatish esa `OrderItem.priceAtOrder`da. Natijada savat ochiq turganda narx o'zgarsa, mijoz ekranidagi son yangilanadi, bazaga nomuvofiqlik kirmaydi. **Aniqlashtirildi (34-qaror):** bu faqat summa aytilguncha — `✅ To'g'ri`dan keyin narx muzlatiladi.
 5. **Savatni tahrirlash yo'q** (faqat "Yana" / "To'g'ri" / "Bekor"). Xato bo'lsa — bekor qilib boshidan. Sabab: MVP sodda qolsin; pozitsiyani o'chirish tugmasi keyin qo'shilishi mumkin.
 6. **Chek — faqat rasm** (`photo`). Document/PDF qabul qilinmaydi.
 7. **Albom (bir nechta rasm) rad etiladi**: `message.mediaGroupId != null` bo'lsa "faqat bitta rasm yuboring". Albom bir necha update bo'lib kelgani uchun oxirgi rad etilgan `mediaGroupId` xotirada eslab qolinadi — bot bir marta javob beradi. (Bazaga yozilmaydi: vaqtinchalik UI holati.)
@@ -262,7 +262,7 @@ Qarorlar va sabablari:
 20. **Xato xabari ham o'sha quyruq bilan tugaydi** — admin xato xabariga reply qilib qayta urinadi, halqa uzilmaydi va boshidan boshlash kerak emas.
 21. **Qayta chizish muvaffaqiyatsiz bo'lsa bot buni bilmaydi** (service `BotApiMethod` qaytaradi, `execute` natijasini ko'rmaydi — 15-qaror bilan bir xil sabab). Aynan shuning uchun qisqa tasdiq xabari majburiy: ro'yxat yangilanmasa ham admin amal bajarilganini ko'radi.
 22. **`available` maydoni butunlay olib tashlanadi.** Non tugasa odam navbatga yoziladi, ketmaydi — ya'ni "bugun yo'q" holati hech qachon foydali ish qilmaydi, lekin har ekranda shart-tekshiruv qo'shadi. Prod baza Flyway `V1`dan toza yaratiladi, ustun u yerda umuman yo'q.
-23. **Arxivlash yo'q — o'chirish haqiqiy `delete`.** Lekin `OrderItem` → `Product` FK eski buyurtma tarixini ushlab turadi, shuning uchun `OrderItem`ga `productNameAtOrder` qo'shiladi va `product` FK `nullable` bo'ladi: nom ham xuddi `priceAtOrder` kabi muzlatiladi, mahsulot o'chsa eski karta baribir to'liq chiqadi. O'chirishda service avval shu mahsulotga ishora qilayotgan `OrderItem`larni `null`ga qo'yadi va `CartItem`larni o'chiradi.
+23. **Arxivlash yo'q — o'chirish haqiqiy `delete`.** Lekin `OrderItem` → `Product` FK eski buyurtma tarixini ushlab turadi, shuning uchun `OrderItem`ga `productNameAtOrder` qo'shiladi va `product` FK `nullable` bo'ladi: nom ham xuddi `priceAtOrder` kabi muzlatiladi, mahsulot o'chsa eski karta baribir to'liq chiqadi. O'chirishda service avval shu mahsulotga ishora qilayotgan `OrderItem`larni `null`ga qo'yadi va `CartItem`larni o'chiradi (34-qarordan keyin: faqat muzlatilmaganlarini, muzlatilganlari ham `null`ga qo'yiladi).
 24. **O'chirishda tasdiq tugmasi bor** (`➕` bilan qaytarish nomni va narxni qayta yozishni talab qiladi, ya'ni bir bosishda qaytmaydi). Boshqa joylarda tasdiq so'ramaymiz, bu yerda so'raymiz — chunki amal haqiqatan ham yo'qotuvchi.
 25. **`➕` bitta qadamda:** `Nom va narxni yozing: Non 6000` — oxirgi token narx, qolgani nom (bo'sh joyli nom ishlaydi). Yiliga bir-ikki marta ishlatiladigan amal uchun ikki qadamli sehrgar ortiqcha.
 26. **Validatsiya:** narx — butun son, ajratgichlar (`6 000`, `6_000`) tozalanadi, `0` va manfiy rad; nom — bo'sh emas, ≤ 32 belgi (inline tugmaga nom + narx sig'ishi kerak), `/` bilan boshlanmaydi, unique.
@@ -294,13 +294,14 @@ Qarorlar va sabablari:
 31. **`/buyurtmalar` — ochiq kartalarni qayta chiqarish**, har guruh o'zinikini: kassada `NEW` + `ACCEPTED` (chek bilan), ishchilarda `ACCEPTED`. Service yuborish natijasini ko'rmaydi (15-qaror), shuning uchun "yetmadi"ni avtomatik aniqlash o'rniga guruh o'zi so'raydi; mijozning qulf xabarida "uzoq cho'zilsa, novvoyxonaga ayting" qatori bor. Takroriy karta xavfsiz: ikkinchi bosish validatsiyadan o'tmaydi va karta o'zini tuzatadi. Kartalar faqat so'ralganda chiqadi — ishchilarga kutilmagan takroriy karta tushib, non ikki marta yopilmaydi. Rad etilgan variantlar: qulfni vaqt bilan ochish (yo'qolgan buyurtmani yashiradi, mijoz ikkinchi marta to'laydi) va outbox + scheduler (`messageId` saqlash kerak — 15, 28-qarorlarni buzadi).
 32. **`/buyurtmalar` limiti 20 ta** — Telegram guruhga daqiqasiga ~20 xabar ruxsat beradi. Kassada `NEW` oldin: ko'p `ACCEPTED` yangi to'lovlarni limitdan siqib chiqarmasin. Qolganlar uchun "yana N ta bor" qatori.
 33. **Karta yasash `OrderCardService`da.** Kassa kartasi endi ikki joyda yasaladi (buyurtma yaratilganda va `/buyurtmalar`da), ishchilar kartasi ham — takrorlanmasin.
+34. **Savat summa aytilgan paytda muzlatiladi** (`CART_OK`): `CartItem.nameAtCheckout` / `priceAtCheckout`. Shu paytdan narx va'da qilingan — mijoz aynan shu summani o'tkazadi. 4-qaror bekor bo'lmaydi, aniqlashadi: "savatda joriy narx — summa aytilguncha". Mahsulot o'chirilsa muzlatilgan qator o'chmaydi, faqat `product` `null` bo'ladi (`OrderItem` bilan bir xil yo'l, 23-qaror), muzlatilmaganlari esa avvalgidek o'chadi. `WAITING_RECEIPT`dan savatga qaytish yo'li yo'q (faqat `/start`, u tozalaydi) — muzlagan qator hech qachon "erimaydi". Rad etilgan variant: kassaga "mijozga X aytilgan edi" ogohlantirishi — faqat narx o'zgarishini yopadi (o'chirilgan mahsulot baribir tushib qoladi) va qarorni odamga yuklaydi. V2 migratsiya.
 
 Vazifalar:
 - [x] `SendRetryPolicy` + `NonvoyTelegramBot.sendWithRetry`
 - [x] `OrderCardService`: `paymentCard`, `kitchenCard`, `openCards`
 - [x] `/buyurtmalar` ikkala guruhda, `setMyCommands` ishchilar guruhiga ham
 - [x] Mijozning qulf xabariga qo'shimcha qator
-- [ ] Narxni summa aytilganda muzlatish (2-muammo)
+- [x] Narxni summa aytilganda muzlatish (2-muammo): V2 migratsiya, `CartService.freeze`, `CartItem.displayName`/`unitPrice`
 - [ ] Miqdor overflow (3-muammo)
 
 ### Parallel vazifa (kod emas)
