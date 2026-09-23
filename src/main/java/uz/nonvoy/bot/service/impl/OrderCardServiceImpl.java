@@ -46,11 +46,11 @@ public class OrderCardServiceImpl implements OrderCardService {
     }
 
     @Override
-    public SendMessage kitchenCard(Order order) {
+    public SendMessage kitchenCard(Order order, Integer paymentMessageId) {
         return SendMessage.builder()
                 .chatId(workerGroupId)
                 .text(OrderCardFormatter.card(order, orderService.findItems(order), CardAudience.KITCHEN))
-                .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.KITCHEN))
+                .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.KITCHEN, paymentMessageId))
                 .build();
     }
 
@@ -76,8 +76,10 @@ public class OrderCardServiceImpl implements OrderCardService {
         }
 
         List<PartialBotApiMethod<?>> result = new ArrayList<>();
+        // Qayta chiqarilgan ishchilar kartasida kassa kartasining id'si noma'lum: "Tayyor"
+        // bosilganda kassa kartasi yangilanmaydi, eskirgan tugmasini validatsiya ushlaydi (15-qaror)
         for (Order order : orders) {
-            result.add(audience == CardAudience.PAYMENT ? paymentCard(order) : kitchenCard(order));
+            result.add(audience == CardAudience.PAYMENT ? paymentCard(order) : kitchenCard(order, null));
         }
         long hidden = total - orders.size();
         if (hidden > 0) {
