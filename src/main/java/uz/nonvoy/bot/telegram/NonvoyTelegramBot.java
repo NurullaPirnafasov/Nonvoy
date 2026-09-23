@@ -21,7 +21,9 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import uz.nonvoy.bot.service.AdminFlowService;
 import uz.nonvoy.bot.service.CustomerFlowService;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -55,8 +57,8 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
 
     /**
      * Buyruqlarni Telegram menyusida ko'rsatadi: novvoy "/mahsulotlar"ni qo'lda yozmasin,
-     * menyudan bosib ochsin. Kassa buyrug'i faqat o'sha guruh scope'ida — mijozlar
-     * ro'yxatida ko'rinmaydi.
+     * menyudan bosib ochsin. Guruh buyruqlari faqat o'sha guruh scope'ida — mijozlar
+     * ro'yxatida ko'rinmaydi, ishchilar esa mahsulot boshqaruvini ko'rmaydi.
      * <p>
      * Ro'yxatdan o'tish muvaffaqiyatli bo'lgandan keyin chaqiriladi, {@code onRegister}
      * ichida emas: u ro'yxatdan o'tishdan OLDIN ishlaydi, ya'ni tarmoq yo'qligida har bir
@@ -68,9 +70,15 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
                     .command(new BotCommand("start", "Botni boshlash"))
                     .scope(new BotCommandScopeDefault())
                     .build());
+            BotCommand openOrders = new BotCommand("buyurtmalar", "Ochiq buyurtmalar kartalarini qayta chiqarish");
             execute(SetMyCommands.builder()
+                    .command(openOrders)
                     .command(new BotCommand("mahsulotlar", "Mahsulotlarni boshqarish"))
                     .scope(new BotCommandScopeChat(String.valueOf(adminGroupId)))
+                    .build());
+            execute(SetMyCommands.builder()
+                    .command(openOrders)
+                    .scope(new BotCommandScopeChat(String.valueOf(workerGroupId)))
                     .build());
         } catch (TelegramApiException e) {
             // Buyruq menyusi bo'lmasa ham bot ishlayveradi
@@ -100,7 +108,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         if (methods == null || methods.isEmpty()) return;
         for (PartialBotApiMethod<?> method : methods) {
             try {
-                send(method);
+                sendWithRetry(method);
             } catch (TelegramApiException e) {
                 if (isAlreadyUpToDate(e)) {
                     log.debug("Xabar o'zgarmadi, tahrirlash o'tkazib yuborildi: {}", method.getClass().getSimpleName());
@@ -119,6 +127,33 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
      */
     private boolean isAlreadyUpToDate(TelegramApiException e) {
         return e.getMessage() != null && e.getMessage().contains("message is not modified");
+    }
+
+    /**
+     * Vaqtincha uzilishda xabar yo'qolmasin: kassa kartasi yetib bormasa, mijoz pul to'lagan
+     * buyurtmani hech kim ko'rmaydi. Qachon va qancha kutish — {@link SendRetryPolicy}da.
+     */
+    private void sendWithRetry(PartialBotApiMethod<?> method) throws TelegramApiException {
+        for (int failedAttempts = 1; ; failedAttempts++) {
+            try {
+                send(method);
+                return;
+            } catch (TelegramApiException e) {
+                Optional<Duration> delay = SendRetryPolicy.delayBeforeRetry(e, failedAttempts);
+                if (delay.isEmpty()) {
+                    throw e;
+                }
+                log.warn("{} yuborilmadi ({}-urinish): {}. {} ms dan keyin qayta urinamiz",
+                        method.getClass().getSimpleName(), failedAttempts, e.getMessage(), delay.get().toMillis());
+                try {
+                    Thread.sleep(delay.get().toMillis());
+                } catch (InterruptedException interrupted) {
+                    // Dastur to'xtatilmoqda — kutishni davom ettirmaymiz
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
     }
 
     /**

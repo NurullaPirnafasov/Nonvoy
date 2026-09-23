@@ -18,7 +18,7 @@ public final class CartFormatter {
         StringBuilder sb = new StringBuilder("🧺 Savatingiz:\n");
         for (CartItem item : items) {
             sb.append("🍞 ")
-                    .append(item.getProduct().getName())
+                    .append(item.displayName())
                     .append(" × ")
                     .append(item.getQuantity())
                     .append(" — ")
@@ -31,6 +31,6 @@ public final class CartFormatter {
     }
 
     private static BigDecimal lineTotal(CartItem item) {
-        return item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+        return item.unitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
     }
 }

@@ -27,12 +27,11 @@ import uz.nonvoy.bot.entity.User;
 import uz.nonvoy.bot.entity.enums.UserState;
 import uz.nonvoy.bot.service.CartService;
 import uz.nonvoy.bot.service.CustomerFlowService;
+import uz.nonvoy.bot.service.OrderCardService;
 import uz.nonvoy.bot.service.OrderService;
 import uz.nonvoy.bot.service.ProductService;
 import uz.nonvoy.bot.service.UserService;
-import uz.nonvoy.bot.util.CardAudience;
 import uz.nonvoy.bot.util.CartFormatter;
-import uz.nonvoy.bot.util.OrderCardFormatter;
 import uz.nonvoy.bot.util.PriceFormatter;
 
 import java.math.BigDecimal;
@@ -55,9 +54,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
     private final ProductService productService;
     private final OrderService orderService;
     private final CartService cartService;
-
-    @Value("${bot.admin-group-id}")
-    private Long paymentGroupId;
+    private final OrderCardService orderCardService;
 
     @Value("${bot.payment-card}")
     private String paymentCard;
@@ -171,7 +168,8 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         if (pending.isPresent()) {
             return reply(chatId,
                     "Oldingi buyurtmangiz #" + pending.get().getId() + " to'lov tekshiruvida ⏳\n"
-                            + "Tasdiqlangach yangi buyurtma bera olasiz",
+                            + "Tasdiqlangach yangi buyurtma bera olasiz\n"
+                            + "Uzoq cho'zilsa, novvoyxonaga ayting",
                     orderKeyboard());
         }
 
@@ -223,7 +221,12 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
             return startOrder(user, chatId);
         }
 
-        cartService.add(user, product, quantity);
+        try {
+            cartService.add(user, product, quantity);
+        } catch (IllegalArgumentException e) {
+            // Savatdagi miqdor bilan qo'shilganda to'lib ketdi — mijoz shu qadamda qoladi
+            return reply(chatId, "Miqdor juda katta, kichikroq son yozing." + CANCEL_HINT);
+        }
         userService.updateState(user, UserState.CART_REVIEW);
         return List.of(cartScreen(user, chatId));
     }
@@ -251,9 +254,12 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                     result.add(message(chatId, "Savat bo'sh", orderKeyboard()));
                     return result;
                 }
+                // Shu daqiqadan summa va'da qilingan: mijoz aynan uni o'tkazadi, keyingi narx
+                // o'zgarishi yoki mahsulot o'chirilishi buyurtmaga ta'sir qilmasin (34-qaror)
+                cartService.freeze(user);
                 userService.updateState(user, UserState.WAITING_RECEIPT);
                 result.add(stripKeyboard(chatId, messageId, cartText(user)));
-                result.add(message(chatId, paymentInstruction(cartService.calculateTotal(items))));
+                result.add(message(chatId, paymentInstruction(cartService.calculateTotal(cartService.findItems(user)))));
             }
             case CART_CANCEL -> {
                 cartService.clear(user);
@@ -324,7 +330,7 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
         result.add(message(chatId,
                 "Buyurtmangiz #" + order.getId() + " qabul qilindi. To'lov tekshirilmoqda ⏳",
                 orderKeyboard()));
-        result.add(paymentGroupCard(order));
+        result.add(orderCardService.paymentCard(order));
         return result;
     }
 
@@ -352,16 +358,6 @@ public class CustomerFlowServiceImpl implements CustomerFlowService {
                                 button("✅ Tasdiqlash", FINAL_OK),
                                 button("❌ Bekor", FINAL_CANCEL)))
                         .build())
-                .build();
-    }
-
-    /** Kassa kartasi chek rasmi bilan tushadi, shuning uchun SendPhoto (13-qaror). */
-    private SendPhoto paymentGroupCard(Order order) {
-        return SendPhoto.builder()
-                .chatId(String.valueOf(paymentGroupId))
-                .photo(new InputFile(order.getReceiptFileId()))
-                .caption(OrderCardFormatter.card(order, orderService.findItems(order), CardAudience.PAYMENT))
-                .replyMarkup(OrderCardFormatter.keyboard(order, CardAudience.PAYMENT))
                 .build();
     }
 

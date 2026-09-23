@@ -1,6 +1,7 @@
 package uz.nonvoy.bot.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.nonvoy.bot.entity.CartItem;
@@ -58,6 +59,19 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    public List<Order> findOldest(OrderStatus status, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return orderRepository.findByStatusOrderByIdAsc(status, Limit.of(limit));
+    }
+
+    @Override
+    public long countByStatus(OrderStatus status) {
+        return orderRepository.countByStatus(status);
+    }
+
+    @Override
     public List<OrderItem> findItems(Order order) {
         return orderItemRepository.findByOrderIdOrderByIdAsc(order.getId());
     }
@@ -80,15 +94,16 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmountMoney(cartService.calculateTotal(cartItems))
                 .build());
 
-        // Narx ham, miqdor ham shu daqiqada muzlatiladi: mahsulot narxi keyin
-        // o'zgarsa buyurtma tarixi buzilmasligi kerak
+        // Nom va narx savatda summa aytilgan paytda muzlatilgan (34-qaror) va shu yerga
+        // ko'chadi: mahsulot keyin o'zgarsa yoki o'chirilsa ham buyurtma tarixi buzilmaydi.
+        // Mahsulot o'chirilgan bo'lsa product null — nom va narx baribir saqlangan
         orderItemRepository.saveAll(cartItems.stream()
                 .map(cartItem -> OrderItem.builder()
                         .order(order)
                         .product(cartItem.getProduct())
                         .quantity(cartItem.getQuantity())
-                        .productNameAtOrder(cartItem.getProduct().getName())
-                        .priceAtOrder(cartItem.getProduct().getPrice())
+                        .productNameAtOrder(cartItem.displayName())
+                        .priceAtOrder(cartItem.unitPrice())
                         .build())
                 .toList());
 

@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +41,18 @@ class CartServiceImplTest {
         when(cartItemRepository.save(any())).thenAnswer(call -> call.getArgument(0));
 
         assertEquals(15, cartService.add(user, non, 5).getQuantity());
+    }
+
+    /** Yuqori chegara yo'q, lekin to'lib ketgan miqdor manfiy summa bilan saqlanmasin. */
+    @Test
+    void mergeOverflowIsRejected() {
+        User user = user();
+        Product non = product("Non", 5000);
+        when(cartItemRepository.findByUserIdAndProductId(1L, 7L))
+                .thenReturn(Optional.of(CartItem.builder().user(user).product(non).quantity(2_000_000_000).build()));
+
+        assertThrows(IllegalArgumentException.class, () -> cartService.add(user, non, 2_000_000_000));
+        verify(cartItemRepository, never()).save(any());
     }
 
     @Test
@@ -66,6 +80,38 @@ class CartServiceImplTest {
 
         non.setPrice(BigDecimal.valueOf(6000));
         assertEquals(BigDecimal.valueOf(95000), cartService.calculateTotal(items));
+    }
+
+    /** Summa aytilgach narx va'da qilingan: keyingi o'zgarish jami summaga ta'sir qilmaydi (34-qaror). */
+    @Test
+    void freezeKeepsPriceAndNameShownAtCheckout() {
+        User user = user();
+        Product non = product("Non", 5000);
+        CartItem item = CartItem.builder().product(non).quantity(10).build();
+        when(cartItemRepository.findByUserIdOrderByIdAsc(1L)).thenReturn(List.of(item));
+
+        cartService.freeze(user);
+        non.setPrice(BigDecimal.valueOf(6000));
+        non.setName("Oq non");
+
+        assertEquals(BigDecimal.valueOf(50000), cartService.calculateTotal(List.of(item)));
+        assertEquals("Non", item.displayName());
+        verify(cartItemRepository).saveAll(List.of(item));
+    }
+
+    /** Qayta chaqirilganda va'da qilingan narx yangi narx bilan almashmasin. */
+    @Test
+    void freezingTwiceKeepsFirstPrice() {
+        User user = user();
+        Product non = product("Non", 5000);
+        CartItem item = CartItem.builder().product(non).quantity(1).build();
+        when(cartItemRepository.findByUserIdOrderByIdAsc(1L)).thenReturn(List.of(item));
+
+        cartService.freeze(user);
+        non.setPrice(BigDecimal.valueOf(6000));
+        cartService.freeze(user);
+
+        assertEquals(BigDecimal.valueOf(5000), item.unitPrice());
     }
 
     @Test

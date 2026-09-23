@@ -27,7 +27,13 @@ public class CartServiceImpl implements CartService {
                         .product(product)
                         .quantity(0)
                         .build());
-        item.setQuantity(item.getQuantity() + quantity);
+        // Yuqori chegara yo'q, lekin int'ning o'z chegarasi bor: to'lib ketsa miqdor
+        // va summa jimgina manfiy bo'lib qolardi
+        try {
+            item.setQuantity(Math.addExact(item.getQuantity(), quantity));
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Miqdor juda katta", e);
+        }
         return cartItemRepository.save(item);
     }
 
@@ -39,8 +45,23 @@ public class CartServiceImpl implements CartService {
     @Override
     public BigDecimal calculateTotal(List<CartItem> items) {
         return items.stream()
-                .map(item -> item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    @Transactional
+    @Override
+    public void freeze(User user) {
+        List<CartItem> items = cartItemRepository.findByUserIdOrderByIdAsc(user.getId());
+        for (CartItem item : items) {
+            // Qayta chaqirilsa va'da qilingan narx qayta yozilmasin
+            if (item.isFrozen()) {
+                continue;
+            }
+            item.setNameAtCheckout(item.getProduct().getName());
+            item.setPriceAtCheckout(item.getProduct().getPrice());
+        }
+        cartItemRepository.saveAll(items);
     }
 
     @Override

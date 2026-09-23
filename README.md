@@ -46,8 +46,10 @@ Bir nechta qaror alohida izohga arziydi:
 
 - **Savat alohida entity'da** — buyurtma faqat oxirgi tasdiqdan keyin yaratiladi, shunda bazada
   chala `Order` hech qachon qolmaydi va "yakunlanmagan" status kerak emas.
-- **`CartItem`da narx yo'q** — savatda joriy narx ko'rsatiladi, muzlatish esa `OrderItem`da.
-  Savat ochiq turganda narx o'zgarsa, mijoz ekranidagi son yangilanadi, bazaga nomuvofiqlik kirmaydi.
+- **Savatda narx summa aytilguncha joriy** — savat ochiq turganda narx o'zgarsa, mijoz
+  ekranidagi son yangilanadi. Mijozga to'lanadigan summa aytilgan paytda esa nom va narx
+  `CartItem`da muzlatiladi: mijoz aynan shu summani o'tkazadi, keyin narx o'zgarsa yoki
+  mahsulot o'chirilsa ham buyurtma o'tkazilgan summa bilan yaratiladi.
 - **`priceAtOrder` va `productNameAtOrder`** — buyurtma paytidagi narx va nom muzlatiladi.
   Mahsulot keyin qayta nomlansa yoki o'chirilsa ham eski buyurtma kartasi to'liq chiqadi.
 - **Buyurtma raqami sifatida `id`** — alohida `orderNumber` hisoblagichi yo'q. `id` unikal,
@@ -123,6 +125,12 @@ telefon ham, narx ham yo'q:
 Bekor qilish faqat kassada: pul kassada olingan, shuning uchun pulga bog'liq qaror bitta
 joyda turadi. Kassa `ACCEPTED`ni bekor qilsa ishchilarga alohida "yopmang" xabari ketadi —
 aks holda non allaqachon tandirda bo'ladi.
+
+Karta guruhga yetib bormasa (tarmoq uzilishi, bot guruhdan chiqarilgan) buyurtma
+yo'qolmaydi: har ikki guruhda `/buyurtmalar` o'sha guruhning ochiq kartalarini qayta
+chiqaradi — kassada `NEW` va `ACCEPTED`, ishchilarda `ACCEPTED`. Takroriy karta xavfsiz:
+ikkala karta bitta buyurtmaga ishora qiladi, ikkinchi bosish status validatsiyasidan o'tmaydi.
+Vaqtincha uzilishlar uchun bot tarmoq xatosida so'rovni o'zi qayta yuboradi.
 
 ## Mahsulot boshqaruvi
 
