@@ -193,8 +193,10 @@ Kerak: JDK 21, PostgreSQL, [@BotFather](https://t.me/BotFather)dan olingan bot t
    ./mvnw spring-boot:run
    ```
 
-Birinchi ishga tushishda jadvallar avtomatik yaratiladi (`ddl-auto: update`) va bitta
-"Non" mahsuloti seed qilinadi (`ProductSeeder`). Qolganini `/mahsulotlar` orqali qo'shasiz.
+Sxema [Flyway](https://flywaydb.org) migratsiyalari bilan yaratiladi
+(`src/main/resources/db/migration`), Hibernate esa faqat tekshiradi (`ddl-auto: validate`):
+entity bilan baza mos kelmasa dastur ishga tushmaydi. Birinchi ishga tushishda bitta "Non"
+mahsuloti seed qilinadi (`ProductSeeder`). Qolganini `/mahsulotlar` orqali qo'shasiz.
 
 Long polling ishlatilgani uchun statik IP yoki HTTPS domen shart emas — bot oddiy uy
 kompyuterida ham ishlaydi.

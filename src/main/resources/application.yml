@@ -5,7 +5,9 @@ spring:
     password: ${DB_PASSWORD:postgres}
   jpa:
     hibernate:
-      ddl-auto: update
+      # Sxemani faqat Flyway o'zgartiradi (db/migration). Hibernate ishga tushishda
+      # entity'lar bazaga mosligini tekshiradi: migratsiya esdan chiqsa dastur ko'tarilmaydi
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
