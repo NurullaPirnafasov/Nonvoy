@@ -8,6 +8,11 @@ import java.util.Optional;
 /**
  * Admin guruhdagi buyurtma kartasi tugmalari.
  * Callback data formati: ACTION:orderId (masalan "ACCEPT:47").
+ * <p>
+ * Ishchilar kartasidagi {@code READY} kassa kartasining messageId'sini ham olib yuradi:
+ * "READY:47:812". Shu tufayli non tayyor bo'lganda kassa kartasi ham yopiladi, bazada
+ * messageId saqlanmaydi (35-qaror). Uchinchi qism ixtiyoriy — {@code /buyurtmalar} bilan
+ * qayta chiqarilgan karta va deploy'dan oldingi tugmalarda u yo'q.
  */
 @Getter
 public enum OrderAction {
@@ -27,6 +32,13 @@ public enum OrderAction {
 
     public String callbackData(Long orderId) {
         return name() + SEPARATOR + orderId;
+    }
+
+    /** @param paymentMessageId kassa kartasining messageId'si; null bo'lsa ikki qismli format */
+    public String callbackData(Long orderId, Integer paymentMessageId) {
+        return paymentMessageId == null
+                ? callbackData(orderId)
+                : callbackData(orderId) + SEPARATOR + paymentMessageId;
     }
 
     public static Optional<OrderAction> parse(String data) {
@@ -55,13 +67,31 @@ public enum OrderAction {
         }
     }
 
+    /** Kassa kartasining messageId'si — faqat uch qismli formatda bor. */
+    public static Optional<Integer> parsePaymentMessageId(String data) {
+        Optional<String[]> parts = splitData(data);
+        if (parts.isEmpty() || parts.get().length < 3) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Integer.parseInt(parts.get()[2]));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
     private static Optional<String[]> splitData(String data) {
         if (data == null || data.isBlank()) {
             return Optional.empty();
         }
-        String[] parts = data.split(SEPARATOR, 2);
-        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+        String[] parts = data.split(SEPARATOR, 3);
+        if (parts.length < 2) {
             return Optional.empty();
+        }
+        for (String part : parts) {
+            if (part.isBlank()) {
+                return Optional.empty();
+            }
         }
         return Optional.of(parts);
     }

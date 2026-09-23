@@ -44,6 +44,32 @@ class OrderActionTest {
         }
     }
 
+    /** Ishchilar tugmasi kassa kartasining id'sini olib yuradi (35-qaror). */
+    @Test
+    void readyCarriesPaymentMessageId() {
+        String data = OrderAction.READY.callbackData(47L, 812);
+
+        assertEquals("READY:47:812", data);
+        assertEquals(OrderAction.READY, OrderAction.parse(data).orElseThrow());
+        assertEquals(47L, OrderAction.parseOrderId(data).orElseThrow());
+        assertEquals(812, OrderAction.parsePaymentMessageId(data).orElseThrow());
+    }
+
+    /** Deploy'dan oldingi va /buyurtmalar bilan chiqarilgan tugmalar — uchinchi qismsiz. */
+    @Test
+    void twoPartDataHasNoPaymentMessageId() {
+        assertEquals("READY:47", OrderAction.READY.callbackData(47L, null));
+        assertTrue(OrderAction.parsePaymentMessageId("READY:47").isEmpty());
+        assertEquals(47L, OrderAction.parseOrderId("READY:47").orElseThrow());
+    }
+
+    @Test
+    void brokenPaymentMessageIdDoesNotBreakTheAction() {
+        assertTrue(OrderAction.parse("READY:47:").isEmpty());
+        assertTrue(OrderAction.parsePaymentMessageId("READY:47:abc").isEmpty());
+        assertEquals(47L, OrderAction.parseOrderId("READY:47:abc").orElseThrow());
+    }
+
     @Test
     void nonNumericOrderIdIsRejected() {
         assertTrue(OrderAction.parseOrderId("ACCEPT:abc").isEmpty());

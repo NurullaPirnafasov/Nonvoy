@@ -17,8 +17,13 @@ public interface OrderCardService {
     /** Kassa kartasi: chek rasmi + caption + status bo'yicha tugmalar (13-qaror). */
     SendPhoto paymentCard(Order order);
 
-    /** Ishchilar kartasi: oddiy matn, chek ham, telefon ham, narx ham yo'q (13-qaror). */
-    SendMessage kitchenCard(Order order);
+    /**
+     * Ishchilar kartasi: oddiy matn, chek ham, telefon ham, narx ham yo'q (13-qaror).
+     *
+     * @param paymentMessageId kassa kartasining messageId'si — "Tayyor" bosilganda kassa kartasi
+     *                         ham yopilishi uchun (35-qaror); noma'lum bo'lsa null
+     */
+    SendMessage kitchenCard(Order order, Integer paymentMessageId);
 
     /**
      * Guruhdagi ochiq buyurtmalar kartalarini qayta chiqaradi. Karta yuborilayotganda tarmoq

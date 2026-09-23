@@ -96,6 +96,7 @@ public class AdminFlowServiceImpl implements AdminFlowService {
     private List<PartialBotApiMethod<?>> handleOrderAction(CallbackQuery callbackQuery, String data, Long chatId) {
         Optional<OrderAction> action = OrderAction.parse(data);
         Optional<Long> orderId = OrderAction.parseOrderId(data);
+        Integer paymentMessageId = OrderAction.parsePaymentMessageId(data).orElse(null);
         if (action.isEmpty() || orderId.isEmpty()) {
             return List.of(answer(callbackQuery, "Noma'lum tugma"));
         }
@@ -117,23 +118,30 @@ public class AdminFlowServiceImpl implements AdminFlowService {
         } catch (IllegalStateException e) {
             // Ikki marta bosish yoki eskirgan karta (15-qaror) shu yerga tushadi.
             // Kartani qayta chizmaymiz — matn o'zgarmagani uchun Telegram baribir rad etardi;
-            // o'rniga kartadagi tugmalarni haqiqiy holatga moslaymiz
-            log.info("Ruxsatsiz status o'tishi: order={}, action={}", orderId.get(), action.get(), e);
+            // o'rniga kartadagi tugmalarni haqiqiy holatga moslaymiz.
+            // Kutilgan holat, xato emas — stack trace kerak emas, u faqat chalg'itadi
+            log.info("Eskirgan tugma rad etildi: order={}, action={}: {}", orderId.get(), action.get(), e.getMessage());
             List<PartialBotApiMethod<?>> result = new ArrayList<>();
             result.add(answer(callbackQuery, alreadyHandledText(existing.get())));
             result.add(EditMessageReplyMarkup.builder()
                     .chatId(chatId)
                     .messageId(callbackQuery.getMessage().getMessageId())
-                    .replyMarkup(OrderCardFormatter.keyboard(existing.get(), audience))
+                    .replyMarkup(OrderCardFormatter.keyboard(existing.get(), audience, paymentMessageId))
                     .build());
             return result;
         }
 
         Order order = change.order();
+        Integer ownMessageId = callbackQuery.getMessage().getMessageId();
         List<PartialBotApiMethod<?>> result = new ArrayList<>();
         result.add(answer(callbackQuery, null));
-        result.add(redrawOwnCard(order, audience, chatId, callbackQuery.getMessage().getMessageId()));
-        result.addAll(notifyWorkers(change));
+        result.add(redrawOwnCard(order, audience, chatId, ownMessageId));
+        // Kassa ✅ bosganda callback aynan kassa kartasidan keladi — uning id'si ishchilar
+        // tugmasiga yoziladi, "Tayyor"da kassa kartasi shu id bilan yopiladi (35-qaror)
+        result.addAll(notifyWorkers(change, audience == CardAudience.PAYMENT ? ownMessageId : null));
+        if (order.getStatus() == OrderStatus.READY && paymentMessageId != null) {
+            result.add(redrawOwnCard(order, CardAudience.PAYMENT, paymentGroupId, paymentMessageId));
+        }
         result.add(SendMessage.builder()
                 .chatId(order.getUser().getTelegramId())
                 .text(customerNotification(change))
@@ -164,11 +172,15 @@ public class AdminFlowServiceImpl implements AdminFlowService {
                 .build();
     }
 
-    /** Ishchilar guruhi faqat kassa qaror qabul qilganda xabar oladi. */
-    private List<PartialBotApiMethod<?>> notifyWorkers(StatusChange change) {
+    /**
+     * Ishchilar guruhi faqat kassa qaror qabul qilganda xabar oladi.
+     *
+     * @param paymentMessageId kassa kartasining messageId'si, ishchilar tugmasiga yoziladi
+     */
+    private List<PartialBotApiMethod<?>> notifyWorkers(StatusChange change, Integer paymentMessageId) {
         Order order = change.order();
         if (change.from() == OrderStatus.NEW && order.getStatus() == OrderStatus.ACCEPTED) {
-            return List.of(orderCardService.kitchenCard(order));
+            return List.of(orderCardService.kitchenCard(order, paymentMessageId));
         }
         // Non allaqachon tandirda bo'lishi mumkin — ishchilar buni bilishi shart (12-qaror)
         if (change.from() == OrderStatus.ACCEPTED && order.getStatus() == OrderStatus.CANCELLED) {

@@ -59,6 +59,15 @@ public final class OrderCardFormatter {
      * Yakuniy statuslarda tugma qolmaydi — karta o'z holatini o'zi ko'rsatadi.
      */
     public static InlineKeyboardMarkup keyboard(Order order, CardAudience audience) {
+        return keyboard(order, audience, null);
+    }
+
+    /**
+     * @param paymentMessageId kassa kartasining messageId'si. Faqat ishchilar tugmasiga yoziladi:
+     *                         non tayyor bo'lganda kassa kartasi ham yopiladi (35-qaror).
+     *                         Noma'lum bo'lsa null — kassa kartasi yangilanmaydi, xolos
+     */
+    public static InlineKeyboardMarkup keyboard(Order order, CardAudience audience, Integer paymentMessageId) {
         List<OrderAction> actions = switch (audience) {
             case PAYMENT -> switch (order.getStatus()) {
                 case NEW -> List.of(OrderAction.ACCEPT, OrderAction.CANCEL);
@@ -77,7 +86,9 @@ public final class OrderCardFormatter {
         for (OrderAction action : actions) {
             row.add(InlineKeyboardButton.builder()
                     .text(action.getLabel())
-                    .callbackData(action.callbackData(order.getId()))
+                    .callbackData(action == OrderAction.READY
+                            ? action.callbackData(order.getId(), paymentMessageId)
+                            : action.callbackData(order.getId()))
                     .build());
         }
         return InlineKeyboardMarkup.builder()

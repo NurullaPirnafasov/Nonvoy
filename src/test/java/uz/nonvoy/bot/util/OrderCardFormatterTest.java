@@ -123,6 +123,18 @@ class OrderCardFormatterTest {
         assertNull(OrderCardFormatter.keyboard(order(OrderStatus.NEW), CardAudience.KITCHEN));
     }
 
+    /** "Tayyor" kassa kartasining id'sini olib yuradi — kassa kartasi ham yopiladi (35-qaror). */
+    @Test
+    void kitchenReadyCarriesPaymentMessageId() {
+        assertEquals(List.of("READY:47:812"), callbackData(OrderStatus.ACCEPTED, CardAudience.KITCHEN, 812));
+    }
+
+    /** Kassa tugmalariga id kerak emas — ular o'z kartasini o'zi tahrirlaydi. */
+    @Test
+    void paymentButtonsIgnorePaymentMessageId() {
+        assertEquals(List.of("ACCEPT:47", "CANCEL:47"), callbackData(OrderStatus.NEW, CardAudience.PAYMENT, 812));
+    }
+
     /** Yakuniy statusda tugma qolmasligi kerak: tasodifan bosishning oldi olinadi. */
     @Test
     void finalStatusesHaveNoButtons() {
@@ -144,7 +156,11 @@ class OrderCardFormatterTest {
     }
 
     private List<String> callbackData(OrderStatus status, CardAudience audience) {
-        InlineKeyboardMarkup markup = OrderCardFormatter.keyboard(order(status), audience);
+        return callbackData(status, audience, null);
+    }
+
+    private List<String> callbackData(OrderStatus status, CardAudience audience, Integer paymentMessageId) {
+        InlineKeyboardMarkup markup = OrderCardFormatter.keyboard(order(status), audience, paymentMessageId);
         assertEquals(1, markup.getKeyboard().size(), "tugmalar bitta qatorda bo'lsin");
         return markup.getKeyboard().get(0).stream()
                 .map(InlineKeyboardButton::getCallbackData)
