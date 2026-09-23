@@ -21,7 +21,9 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import uz.nonvoy.bot.service.AdminFlowService;
 import uz.nonvoy.bot.service.CustomerFlowService;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -100,7 +102,7 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
         if (methods == null || methods.isEmpty()) return;
         for (PartialBotApiMethod<?> method : methods) {
             try {
-                send(method);
+                sendWithRetry(method);
             } catch (TelegramApiException e) {
                 if (isAlreadyUpToDate(e)) {
                     log.debug("Xabar o'zgarmadi, tahrirlash o'tkazib yuborildi: {}", method.getClass().getSimpleName());
@@ -119,6 +121,33 @@ public class NonvoyTelegramBot extends TelegramLongPollingBot {
      */
     private boolean isAlreadyUpToDate(TelegramApiException e) {
         return e.getMessage() != null && e.getMessage().contains("message is not modified");
+    }
+
+    /**
+     * Vaqtincha uzilishda xabar yo'qolmasin: kassa kartasi yetib bormasa, mijoz pul to'lagan
+     * buyurtmani hech kim ko'rmaydi. Qachon va qancha kutish — {@link SendRetryPolicy}da.
+     */
+    private void sendWithRetry(PartialBotApiMethod<?> method) throws TelegramApiException {
+        for (int failedAttempts = 1; ; failedAttempts++) {
+            try {
+                send(method);
+                return;
+            } catch (TelegramApiException e) {
+                Optional<Duration> delay = SendRetryPolicy.delayBeforeRetry(e, failedAttempts);
+                if (delay.isEmpty()) {
+                    throw e;
+                }
+                log.warn("{} yuborilmadi ({}-urinish): {}. {} ms dan keyin qayta urinamiz",
+                        method.getClass().getSimpleName(), failedAttempts, e.getMessage(), delay.get().toMillis());
+                try {
+                    Thread.sleep(delay.get().toMillis());
+                } catch (InterruptedException interrupted) {
+                    // Dastur to'xtatilmoqda — kutishni davom ettirmaymiz
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
     }
 
     /**
