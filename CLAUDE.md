@@ -118,7 +118,7 @@ Admin buyruq: `/mahsulotlar` — mahsulotlarni inline tugmalar orqali boshqarish
 - [x] Exception handling, edge case'lar (ikki marta bosish, noto'g'ri raqam, bekor qilingan buyurtmani "Tayyor" qilish)
 - [x] **Matn/kontakt bo'lmagan update'ga javob berish.** Hozir `NonvoyTelegramBot.isTextOrContact` filtridan o'tmagan hamma narsa (rasm, stiker, ovoz) jimgina tashlanadi — foydalanuvchi stiker yuborsa bot javob bermaydi va nima kutilayotganini bilmaydi. Har state uchun "hozir nima kerakligi"ni eslatuvchi javob bo'lsin. Eslatma: chek rasmini qabul qilish (rejalashtirilgan feature) aynan shu filtrga tiqiladi
 - [x] **README.md** — nima, nega, stack, ishga tushirish. Repo public va portfolio'ning bir qismi, README'siz repo tashrif buyuruvchi uchun bo'sh
-- [x] **Flyway — deploy'dan OLDIN.** `ddl-auto: update` sxemani yarim yangilaydi: enum'ga yangi qiymat qo'shilsa Hibernate yaratgan `CHECK (state IN (...))` constraint'i eskiligicha qoladi va bot runtime'da `DataIntegrityViolationException` beradi (5-bosqichda `users_state_check` aynan shunday portladi); o'chirilgan maydon ustuni ham jadvalda qolib ketadi (`draft_quantity`, `available`). Lokal bazada qo'lda `ALTER` bilan tuzatish mumkin, prod'da esa yo'q. Reja: `ddl-auto: validate` + `V1__init.sql` (hozirgi sxema) va har o'zgarish uchun yangi migratsiya. Bajarildi: `V1__init.sql` entity'lardan Hibernate yordamida chiqarilgan, enum `CHECK`'lari ataylab yo'q (`validate` ularni tekshirmaydi, ya'ni migratsiya esdan chiqsa baribir runtime'da portlardi).
+- [x] **Flyway — deploy'dan OLDIN.** `ddl-auto: update` sxemani yarim yangilaydi: enum'ga yangi qiymat qo'shilsa Hibernate yaratgan `CHECK (state IN (...))` constraint'i eskiligicha qoladi va bot runtime'da `DataIntegrityViolationException` beradi (5-bosqichda `users_state_check` aynan shunday portladi); o'chirilgan maydon ustuni ham jadvalda qolib ketadi (`draft_quantity`, `available`). Lokal bazada qo'lda `ALTER` bilan tuzatish mumkin, prod'da esa yo'q. Reja: `ddl-auto: validate` + `V1__init.sql` (hozirgi sxema) va har o'zgarish uchun yangi migratsiya. Bajarildi: `V1__init.sql` entity'lardan Hibernate yordamida chiqarilgan, enum `CHECK`'lari ataylab yo'q (`validate` ularni tekshirmaydi, ya'ni migratsiya esdan chiqsa baribir runtime'da portlardi). Shu bilan birga: `DB_URL` env, `show-sql` prod konfiguratsiyadan olindi, `PAYMENT_CARD` / `PAYMENT_CARD_HOLDER` default'siz — env unutilsa dastur ishga tushmaydi (soxta karta mijozga ko'rinmasin)
 - [ ] Deploy: arzon VPS yoki vaqtincha uy kompyuteri (long polling — statik IP shart emas). Eslatma: O'zbekistondan `api.telegram.org` to'siladi — lokal ishlab chiqishda VPN yoki proxy kerak, VPS chet elda bo'lsa muammo yo'q
 - [ ] Novvoyga ko'rsatish, real test, tuzatishlar
 
@@ -201,7 +201,7 @@ Vazifalar:
 - [x] `CART_REVIEW` ekrani va "Yana" halqasi
 - [x] Chek qadami (`WAITING_RECEIPT`) — rasm validatsiyasi, albom rad etish
 - [x] `FINAL_CONFIRM` — chek rasmi + savat, buyurtma yaratish (`OrderService` savatdan `OrderItem` yasaydi, `priceAtOrder` muzlatadi), kassaga yuborish
-- [x] `application.yml`: `bot.payment-card`, `bot.payment-card-holder` (dummy default bilan), `bot.worker-group-id`
+- [x] `application.yml`: `bot.payment-card`, `bot.payment-card-holder` (default'siz — 4-bosqichda olib tashlandi), `bot.worker-group-id`
 
 Ikki guruh vazifalari:
 - [x] `Order`ga `receiptFileId`
@@ -216,7 +216,7 @@ Ikki guruh vazifalari:
 - [x] Testlar: ikki audience klaviaturasi, bekor qilish matnlari, caption uzunligi
 
 Ochiq savollar:
-- To'lov kartasi raqami va egasi novvoydan olinadi (hozircha dummy: `8600 1234 5678 9012`, `Ism Familiya`; prod'da `PAYMENT_CARD` / `PAYMENT_CARD_HOLDER` env)
+- To'lov kartasi raqami va egasi novvoydan olinadi (default yo'q, majburiy `PAYMENT_CARD` / `PAYMENT_CARD_HOLDER` env)
 
 ### 6-bosqich: Mahsulot boshqaruvi (bajarildi)
 

@@ -173,8 +173,9 @@ Kerak: JDK 21, PostgreSQL, [@BotFather](https://t.me/BotFather)dan olingan bot t
    | `BOT_USERNAME` | bot username (`@`siz) |
    | `ADMIN_GROUP_ID` | kassa guruhi chat id |
    | `WORKER_GROUP_ID` | ishchilar guruhi chat id |
-   | `PAYMENT_CARD` | to'lov kartasi raqami (default: dummy) |
-   | `PAYMENT_CARD_HOLDER` | karta egasining ismi (default: dummy) |
+   | `PAYMENT_CARD` | to'lov kartasi raqami (majburiy, default yo'q) |
+   | `PAYMENT_CARD_HOLDER` | karta egasining ismi (majburiy, default yo'q) |
+   | `DB_URL` | ixtiyoriy, default `jdbc:postgresql://localhost:5432/nonvoy` |
    | `DB_USERNAME` | ixtiyoriy, default `postgres` |
    | `DB_PASSWORD` | ixtiyoriy, default `postgres` |
 
@@ -197,6 +198,9 @@ Sxema [Flyway](https://flywaydb.org) migratsiyalari bilan yaratiladi
 (`src/main/resources/db/migration`), Hibernate esa faqat tekshiradi (`ddl-auto: validate`):
 entity bilan baza mos kelmasa dastur ishga tushmaydi. Birinchi ishga tushishda bitta "Non"
 mahsuloti seed qilinadi (`ProductSeeder`). Qolganini `/mahsulotlar` orqali qo'shasiz.
+
+To'lov kartasi uchun default qiymat ataylab yo'q: env unutilsa bot mijozga soxta karta
+ko'rsatgandan ko'ra, umuman ishga tushmagani yaxshi.
 
 Long polling ishlatilgani uchun statik IP yoki HTTPS domen shart emas — bot oddiy uy
 kompyuterida ham ishlaydi.
